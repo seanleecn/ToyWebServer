@@ -1,10 +1,18 @@
-#ifndef LOCKER_H
-#define LOCKER_H
+#ifndef LOCKER_HPP
+#define LOCKER_HPP
+/**
+ * @file locker.h
+ * @author lixiang (lix0419@outlook.com)
+ * @brief 线程同步机制封装
+ * @date 2021-05-23
+ * 
+ */
 
 #include <exception>
 #include <pthread.h>
 #include <semaphore.h>
 
+// 二值信号量类
 class sem
 {
 public:
@@ -26,10 +34,13 @@ public:
     {
         sem_destroy(&m_sem);
     }
+    // 信号量非0，执行-1操作
+    // 信号量为0，阻塞线程
     bool wait()
     {
         return sem_wait(&m_sem) == 0;
     }
+    // 信号量+1操作
     bool post()
     {
         return sem_post(&m_sem) == 0;
@@ -38,6 +49,8 @@ public:
 private:
     sem_t m_sem;
 };
+
+// 互斥锁类
 class locker
 {
 public:
@@ -68,6 +81,8 @@ public:
 private:
     pthread_mutex_t m_mutex;
 };
+
+// 条件变量类
 class cond
 {
 public:
@@ -83,6 +98,7 @@ public:
     {
         pthread_cond_destroy(&m_cond);
     }
+    // 等待条件变量
     bool wait(pthread_mutex_t *m_mutex)
     {
         int ret = 0;
@@ -99,17 +115,19 @@ public:
         //pthread_mutex_unlock(&m_mutex);
         return ret == 0;
     }
+    // 唤醒等待条件变量的线程
     bool signal()
     {
         return pthread_cond_signal(&m_cond) == 0;
     }
+    // 唤醒全部等待条件变量的线程
     bool broadcast()
     {
         return pthread_cond_broadcast(&m_cond) == 0;
     }
 
 private:
-    //static pthread_mutex_t m_mutex;
     pthread_cond_t m_cond;
 };
+
 #endif

@@ -4,8 +4,8 @@
 //定时器容器类的构造函数
 sort_timer_lst::sort_timer_lst()
 {
-    head = NULL;
-    tail = NULL;
+    head = nullptr;
+    tail = nullptr;
 }
 //析构函数
 sort_timer_lst::~sort_timer_lst()
@@ -64,8 +64,8 @@ void sort_timer_lst::adjust_timer(util_timer *timer)
     if (timer == head)
     {
         head = head->next;
-        head->prev = NULL;
-        timer->next = NULL;
+        head->prev = nullptr;
+        timer->next = nullptr;
         add_timer(timer, head);
     }
     //被调整定时器在内部，将定时器取出，重新插入
@@ -88,8 +88,8 @@ void sort_timer_lst::del_timer(util_timer *timer)
     if ((timer == head) && (timer == tail))
     {
         delete timer;
-        head = NULL;
-        tail = NULL;
+        head = nullptr;
+        tail = nullptr;
         return;
     }
 
@@ -97,7 +97,7 @@ void sort_timer_lst::del_timer(util_timer *timer)
     if (timer == head)
     {
         head = head->next;
-        head->prev = NULL;
+        head->prev = nullptr;
         delete timer;
         return;
     }
@@ -106,7 +106,7 @@ void sort_timer_lst::del_timer(util_timer *timer)
     if (timer == tail)
     {
         tail = tail->prev;
-        tail->next = NULL;
+        tail->next = nullptr;
         delete timer;
         return;
     }
@@ -126,7 +126,7 @@ void sort_timer_lst::tick()
     }
 
     //获取当前时间
-    time_t cur = time(NULL);
+    time_t cur = time(nullptr);
     util_timer *tmp = head;
 
     //遍历定时器链表
@@ -145,7 +145,7 @@ void sort_timer_lst::tick()
         head = tmp->next;
         if (head)
         {
-            head->prev = NULL;
+            head->prev = nullptr;
         }
         delete tmp;
         tmp = head;
@@ -180,7 +180,7 @@ void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
     {
         prev->next = timer;
         timer->prev = prev;
-        timer->next = NULL;
+        timer->next = nullptr;
         tail = timer;
     }
 }
@@ -202,7 +202,7 @@ int Utils::setnonblocking(int fd)
 //将内核事件表注册读事件，ET模式，选择开启EPOLLONESHOT
 void Utils::addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
 {
-    epoll_event event;
+    epoll_event event{};
     event.data.fd = fd;
 
     if (1 == TRIGMode)
@@ -226,19 +226,19 @@ void Utils::sig_handler(int sig)
     errno = save_errno;
 }
 
-//设置信号函数
+// 设置信号函数
 void Utils::addsig(int sig, void(handler)(int), bool restart)
 {
-    struct sigaction sa;
+    struct sigaction sa{};
     memset(&sa, '\0', sizeof(sa));
     sa.sa_handler = handler;
     if (restart)
         sa.sa_flags |= SA_RESTART;
     sigfillset(&sa.sa_mask);
-    assert(sigaction(sig, &sa, NULL) != -1);
+    assert(sigaction(sig, &sa, nullptr) != -1);
 }
 
-//定时处理任务，重新定时以不断触发SIGALRM信号
+// 定时处理任务，重新定时以不断触发SIGALRM信号
 void Utils::timer_handler()
 {
     m_timer_lst.tick();
@@ -252,7 +252,7 @@ void Utils::show_error(int connfd, const char *info)
     close(connfd);
 }
 
-int *Utils::u_pipefd = 0;
+int *Utils::u_pipefd = nullptr;
 int Utils::u_epollfd = 0;
 
 class Utils;
@@ -260,7 +260,7 @@ class Utils;
 void cb_func(client_data *user_data)
 {
     //删除非活动连接在socket上的注册事件
-    epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, 0);
+    epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, nullptr);
     assert(user_data);
     //删除非活动连接在socket上的注册事件
     close(user_data->sockfd);

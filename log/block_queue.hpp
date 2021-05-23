@@ -3,14 +3,14 @@
 *线程安全，每个操作前都要先加互斥锁，操作完后，再解锁
 **************************************************************/
 
-#ifndef BLOCK_QUEUE_H
-#define BLOCK_QUEUE_H
+#ifndef BLOCK_QUEUE_HPP
+#define BLOCK_QUEUE_HPP
 
 #include <iostream>
 #include <stdlib.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include "../lock/locker.h"
+#include "../lock/locker.hpp"
 using namespace std;
 
 template <class T>

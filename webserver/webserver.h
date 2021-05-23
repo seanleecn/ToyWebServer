@@ -4,15 +4,15 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <stdio.h>
+#include <cstdio>
 #include <unistd.h>
-#include <errno.h>
+#include <cerrno>
 #include <fcntl.h>
-#include <stdlib.h>
+#include <cstdlib>
 #include <cassert>
 #include <sys/epoll.h>
 
-#include "../threadpool/threadpool.h"
+#include "../threadpool/threadpool.hpp"
 #include "../http/http_conn.h"
 
 const int MAX_FD = 65536;           //最大文件描述符
@@ -31,7 +31,7 @@ public:
 
     void thread_pool();
     void sql_pool();
-    void log_write();
+    void log_write() const;
     void trig_mode();
     void eventListen();
     void eventLoop();

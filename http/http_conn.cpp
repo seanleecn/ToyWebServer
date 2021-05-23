@@ -20,10 +20,10 @@ map<string, string> users;
 int http_conn::m_user_count = 0;
 int http_conn::m_epollfd = -1;
 
-void http_conn::initmysql_result(connection_pool *connPool)
+void http_conn::initmysql_result(connection_pool *connPool) const
 {
     //先从连接池中取一个连接
-    MYSQL *mysql = NULL;
+    MYSQL *mysql = nullptr;
     connectionRAII mysqlcon(&mysql, connPool);
 
     //在user表中检索username，passwd数据，浏览器端输入
@@ -62,7 +62,7 @@ int setnonblocking(int fd)
 //将内核事件表注册读事件，ET模式，选择开启EPOLLONESHOT
 void addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
 {
-    epoll_event event;
+    epoll_event event{};
     event.data.fd = fd;
 
     if (1 == TRIGMode)
@@ -86,7 +86,7 @@ void removefd(int epollfd, int fd)
 //将事件重置为EPOLLONESHOT
 void modfd(int epollfd, int fd, int ev, int TRIGMode)
 {
-    epoll_event event;
+    epoll_event event{};
     event.data.fd = fd;
 
     if (1 == TRIGMode)
@@ -135,16 +135,16 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
 //check_state默认为分析请求行状态
 void http_conn::init()
 {
-    mysql = NULL;
+    mysql = nullptr;
     bytes_to_send = 0;
     bytes_have_send = 0;
     m_check_state = CHECK_STATE_REQUESTLINE;
     m_linger = false;
     m_method = GET;
-    m_url = 0;
-    m_version = 0;
+    m_url = nullptr;
+    m_version = nullptr;
     m_content_length = 0;
-    m_host = 0;
+    m_host = nullptr;
     m_start_line = 0;
     m_checked_idx = 0;
     m_read_idx = 0;
@@ -384,7 +384,7 @@ http_conn::HTTP_CODE http_conn::process_read()
 {
     LINE_STATUS line_status = LINE_OK;
     HTTP_CODE ret = NO_REQUEST;
-    char *text = 0;
+    char *text = nullptr;
     // 两种情况:
     // 1. 解析到了请求体
     // 2. 解析到了一行完整的数据
@@ -567,7 +567,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
     //以只读方式获取文件描述符，通过mmap将该文件映射到内存中
     int fd = open(m_real_file, O_RDONLY);
-    m_file_address = (char *)mmap(0, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    m_file_address = (char *)mmap(nullptr, m_file_stat.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
     //避免文件描述符的浪费和占用
     close(fd);
 
@@ -581,7 +581,7 @@ void http_conn::unmap()
     if (m_file_address)
     {
         munmap(m_file_address, m_file_stat.st_size);
-        m_file_address = 0;
+        m_file_address = nullptr;
     }
 }
 
@@ -711,7 +711,7 @@ bool http_conn::add_content_type()
 //添加连接状态，通知浏览器端是保持连接还是关闭
 bool http_conn::add_linger()
 {
-    return add_response("Connection:%s\r\n", (m_linger == true) ? "keep-alive" : "close");
+    return add_response("Connection:%s\r\n", m_linger ? "keep-alive" : "close");
 }
 
 //添加空行

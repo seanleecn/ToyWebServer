@@ -9,7 +9,7 @@ class Config
 {
 public:
     Config();
-    ~Config(){};
+    ~Config()= default;;
 
     void parse_arg(int argc, char *argv[]);
 

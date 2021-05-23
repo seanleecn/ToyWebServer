@@ -1,27 +1,27 @@
 #ifndef HTTPCONNECTION_H
 #define HTTPCONNECTION_H
+
 #include <unistd.h>
-#include <signal.h>
 #include <sys/types.h>
 #include <sys/epoll.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <assert.h>
+#include <cassert>
 #include <sys/stat.h>
-#include <string.h>
+#include <cstring>
 #include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <sys/mman.h>
-#include <stdarg.h>
-#include <errno.h>
+#include <cstdarg>
+#include <cerrno>
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <map>
 
-#include "../lock/locker.h"
+#include "../lock/locker.hpp"
 #include "../CGImysql/sql_connection_pool.h"
 #include "../timer/lst_timer.h"
 #include "../log/log.h"
@@ -94,8 +94,8 @@ public:
     };
 
 public:
-    http_conn() {}
-    ~http_conn() {}
+    http_conn() = default;
+    ~http_conn() = default;
 
 public:
     //初始化套接字
@@ -113,7 +113,7 @@ public:
         return &m_address;
     }
     //初始化数据库读取线程
-    void initmysql_result(connection_pool *connPool);
+    void initmysql_result(connection_pool *connPool) const;
     //时间事件类型
     int timer_flag;
     int improv;

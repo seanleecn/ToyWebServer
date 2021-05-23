@@ -1,7 +1,6 @@
-#include <string.h>
-#include <time.h>
-#include <sys/time.h>
-#include <stdarg.h>
+#include <cstring>
+#include <ctime>
+#include <cstdarg>
 #include "log.h"
 #include <pthread.h>
 using namespace std;
@@ -14,7 +13,7 @@ Log::Log()
 
 Log::~Log()
 {
-    if (m_fp != NULL)
+    if (m_fp != nullptr)
     {
         fclose(m_fp);
     }
@@ -29,7 +28,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
         m_log_queue = new block_queue<string>(max_queue_size);
         pthread_t tid;
         //flush_log_thread为回调函数,这里表示创建线程异步写日志
-        pthread_create(&tid, NULL, flush_log_thread, NULL);
+        pthread_create(&tid, nullptr, flush_log_thread, nullptr);
     }
 
     m_close_log = close_log;
@@ -38,14 +37,14 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
     memset(m_buf, '\0', m_log_buf_size);
     m_split_lines = split_lines;
 
-    time_t t = time(NULL);
+    time_t t = time(nullptr);
     struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
 
     const char *p = strrchr(file_name, '/');
     char log_full_name[256] = {0};
 
-    if (p == NULL)
+    if (p == nullptr)
     {
         snprintf(log_full_name, 255, "%d_%02d_%02d_%s", my_tm.tm_year + 1900, my_tm.tm_mon + 1, my_tm.tm_mday, file_name);
     }
@@ -59,7 +58,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
     m_today = my_tm.tm_mday;
 
     m_fp = fopen(log_full_name, "a");
-    if (m_fp == NULL)
+    if (m_fp == nullptr)
     {
         return false;
     }
@@ -70,7 +69,7 @@ bool Log::init(const char *file_name, int close_log, int log_buf_size, int split
 void Log::write_log(int level, const char *format, ...)
 {
     struct timeval now = {0, 0};
-    gettimeofday(&now, NULL);
+    gettimeofday(&now, nullptr);
     time_t t = now.tv_sec;
     struct tm *sys_tm = localtime(&t);
     struct tm my_tm = *sys_tm;
@@ -154,7 +153,7 @@ void Log::write_log(int level, const char *format, ...)
     va_end(valst);
 }
 
-void Log::flush(void)
+void Log::flush()
 {
     m_mutex.lock();
     //强制刷新写入流缓冲区

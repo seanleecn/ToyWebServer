@@ -1,6 +1,6 @@
 #include "webserver.h"
 
-//主要完成服务器初始化：http连接、根目录、定时器
+// 主要完成服务器初始化：http连接、根目录、定时器
 WebServer::WebServer()
 {
     //http_conn类对象
@@ -15,7 +15,7 @@ WebServer::WebServer()
     users_timer = new client_data[MAX_FD];
 }
 
-//服务器资源释放
+// 服务器资源释放
 WebServer::~WebServer()
 {
     close(m_epollfd);
@@ -27,7 +27,7 @@ WebServer::~WebServer()
     delete m_pool;
 }
 
-//1.初始化用户名、数据库等信息
+// 1.初始化用户名、数据库等信息
 void WebServer::init(int port, string user, string passWord, string databaseName, int log_write,
                      int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model)
 {
@@ -44,8 +44,8 @@ void WebServer::init(int port, string user, string passWord, string databaseName
     m_actormodel = actor_model;
 }
 
-//2.初始化日志
-void WebServer::log_write()
+// 2.初始化日志
+void WebServer::log_write() const
 {
     if (0 == m_close_log)
     {
@@ -57,7 +57,7 @@ void WebServer::log_write()
     }
 }
 
-//3.初始化数据库连接池
+// 3.初始化数据库连接池
 void WebServer::sql_pool()
 {
     //初始化数据库连接池
@@ -68,10 +68,10 @@ void WebServer::sql_pool()
     users->initmysql_result(m_connPool);
 }
 
-//4.创建线程池
+// 4.创建线程池
 void WebServer::thread_pool()
 {
-    //线程池
+    // 线程池
     m_pool = new threadpool<http_conn>(m_actormodel, m_connPool, m_thread_num);
 }
 
@@ -124,7 +124,7 @@ void WebServer::eventListen()
     }
 
     int ret = 0;
-    struct sockaddr_in address;
+    struct sockaddr_in address{};
     bzero(&address, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -153,8 +153,8 @@ void WebServer::eventListen()
     utils.addfd(m_epollfd, m_pipefd[0], false, 0);
 
     utils.addsig(SIGPIPE, SIG_IGN);
-    utils.addsig(SIGALRM, utils.sig_handler, false);
-    utils.addsig(SIGTERM, utils.sig_handler, false);
+    utils.addsig(SIGALRM, Utils::sig_handler, false);
+    utils.addsig(SIGTERM, Utils::sig_handler, false);
 
     alarm(TIMESLOT);
 
@@ -173,10 +173,10 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
     users_timer[connfd].address = client_address;
     users_timer[connfd].sockfd = connfd;
-    util_timer *timer = new util_timer;
+    auto *timer = new util_timer;
     timer->user_data = &users_timer[connfd];
     timer->cb_func = cb_func;
-    time_t cur = time(NULL);
+    time_t cur = time(nullptr);
     //TIMESLOT:最小时间间隔单位为5s
     timer->expire = cur + 3 * TIMESLOT;
     users_timer[connfd].timer = timer;
@@ -187,7 +187,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
 //并对新的定时器在链表上的位置进行调整
 void WebServer::adjust_timer(util_timer *timer)
 {
-    time_t cur = time(NULL);
+    time_t cur = time(nullptr);
     timer->expire = cur + 3 * TIMESLOT;
     utils.m_timer_lst.adjust_timer(timer);
 
@@ -210,7 +210,7 @@ void WebServer::deal_timer(util_timer *timer, int sockfd)
 //7.1 http处理用户数据
 bool WebServer::dealclinetdata()
 {
-    struct sockaddr_in client_address;
+    struct sockaddr_in client_address{};
     socklen_t client_addrlength = sizeof(client_address);
     //LT模式
     if (0 == m_LISTENTrigmode)
@@ -232,7 +232,7 @@ bool WebServer::dealclinetdata()
     //ET模式
     else
     {
-        while (1)
+        while (true)
         {
             // accept返回了一个新的connfd用于send()和recv()
             int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
@@ -422,7 +422,7 @@ void WebServer::eventLoop()
             {
                 //7.1 http处理用户数据
                 bool flag = dealclinetdata(); // 添加了定时事件
-                if (false == flag)
+                if (!flag)
                     continue;
             }
             //处理异常事件
@@ -437,7 +437,7 @@ void WebServer::eventLoop()
             {
                 //7.2接收到SIGALRM信号，timeout设置为True
                 bool flag = dealwithsignal(timeout, stop_server);
-                if (false == flag)
+                if (!flag)
                     LOG_ERROR("%s", "dealclientdata failure");
             }
             // 读取客户端发来的数据

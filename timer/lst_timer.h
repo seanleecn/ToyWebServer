@@ -2,26 +2,26 @@
 #define LST_TIMER
 
 #include <unistd.h>
-#include <signal.h>
+#include <csignal>
 #include <sys/types.h>
 #include <sys/epoll.h>
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-#include <assert.h>
+#include <cassert>
 #include <sys/stat.h>
-#include <string.h>
+#include <cstring>
 #include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <sys/mman.h>
-#include <stdarg.h>
-#include <errno.h>
+#include <cstdarg>
+#include <cerrno>
 #include <sys/wait.h>
 #include <sys/uio.h>
 
-#include <time.h>
+#include <ctime>
 #include "../log/log.h"
 
 //连接资源结构体成员需要用到定时器类
@@ -40,7 +40,7 @@ struct client_data
 class util_timer
 {
 public:
-    util_timer() : prev(NULL), next(NULL) {}
+    util_timer() : prev(nullptr), next(nullptr) {}
 
 public:
     //超时时间
@@ -84,8 +84,8 @@ private:
 class Utils
 {
 public:
-    Utils() {}
-    ~Utils() {}
+    Utils() = default;
+    ~Utils() = default;
 
     void init(int timeslot);
 
