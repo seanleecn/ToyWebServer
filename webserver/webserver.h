@@ -44,39 +44,41 @@ public:
     void dealwithwrite(int sockfd);
 
 public:
-    //基础
-    int m_port;
-    char *m_root;
-    int m_log_write;
-    int m_close_log;
-    int m_actormodel;
+    int m_port; // 端口号,默认9006
+    char *m_root; // root文件夹路径
 
+    // 日志相关
+    int m_log_write; // 日志写入方式，默认同步
+    int m_close_log; // 关闭日志,默认不关闭
+
+    int m_actormodel; // 并发模型,默认是proactor
     int m_pipefd[2];
     int m_epollfd;
-    http_conn *users;
+    http_conn *users; // 保存全部连接
 
     //数据库相关
-    connection_pool *m_connPool;
-    string m_user;         //登陆数据库用户名
-    string m_passWord;     //登陆数据库密码
-    string m_databaseName; //使用数据库名
-    int m_sql_num;
+    connection_pool *m_connPool; // 数据库实例
+    string m_user;               // 登陆数据库用户名
+    string m_passWord;           // 登陆数据库密码
+    string m_databaseName;       // 使用数据库名
+    int m_sql_num;               // 数据库连接池数量,默认8
 
     //线程池相关
-    threadpool<http_conn> *m_pool;
-    int m_thread_num;
+    threadpool<http_conn> *m_pool; // 线程池实例
+    int m_thread_num;              // 线程池内的线程数量,默认8
 
     //epoll_event相关
     epoll_event events[MAX_EVENT_NUMBER];
 
     int m_listenfd;
-    int m_OPT_LINGER;
-    int m_TRIGMode;
-    int m_LISTENTrigmode;
-    int m_CONNTrigmode;
+    int m_OPT_LINGER;     // 优雅关闭链接，默认不使用
+    
+    int m_TRIGMode;       // 触发组合模式,默认listenfd LT + connfd LT
+    int m_LISTENTrigmode; // listenfd触发模式，默认LT
+    int m_CONNTrigmode;   // connfd触发模式，默认LT
 
     //定时器相关
-    client_data *users_timer;
-    Utils utils;
+    client_data *users_timer; // 定时器
+    Utils utils;              // 定时器信号处理函数
 };
 #endif

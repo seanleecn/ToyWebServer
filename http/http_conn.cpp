@@ -14,12 +14,14 @@ const char *error_404_form = "The requested file was not found on this server.\n
 const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
-locker m_lock;
-map<string, string> users;
-
+// TODO:下面这些全局变量应该是在webserver这个类里面吧
+locker m_lock;             
+map<string, string> users; // map用来存储数据库里面已经有的用户密码
+// 下面两个是static变量
 int http_conn::m_user_count = 0;
 int http_conn::m_epollfd = -1;
 
+// 将数据库中的用户名和密码载入到服务器的map中来
 void http_conn::initmysql_result(connection_pool *connPool) const
 {
     //先从连接池中取一个连接
@@ -464,15 +466,17 @@ http_conn::HTTP_CODE http_conn::process_read()
 http_conn::HTTP_CODE http_conn::do_request()
 {
     strcpy(m_real_file, doc_root); // 把doc_root拷贝到m_real_file
-
     int len = strlen(doc_root);
 
-    const char *p = strrchr(m_url, '/'); // 找到/的位置
+    // p是/所在的位置,根据p后面的字符判断是登录还是注册
+    const char *p = strrchr(m_url, '/');
 
-    // 处理cgi
+    // cgi打开
+    // 2:登录校验
+    // 3:注册校验
     if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
     {
-        //根据标志判断是登录检测还是注册检测
+        // 根据标志判断是登录检测还是注册检测
         char flag = m_url[1];
 
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -481,7 +485,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         strncpy(m_real_file + len, m_url_real, FILENAME_LEN - len - 1);
         free(m_url_real);
 
-        //将用户名和密码提取出来
+        // 将用户名和密码提取出来
         char name[100], password[100];
         int i;
         for (i = 5; m_string[i] != '&'; ++i)
@@ -492,11 +496,11 @@ http_conn::HTTP_CODE http_conn::do_request()
         for (i = i + 10; m_string[i] != '\0'; ++i, ++j)
             password[j] = m_string[i];
         password[j] = '\0';
-
+        // 注册
         if (*(p + 1) == '3')
         {
-            //如果是注册，先检测数据库中是否有重名的
-            //没有重名的，进行增加数据
+            // 如果是注册，先检测数据库中是否有重名的
+            // 没有重名的，进行增加数据
             char *sql_insert = (char *)malloc(sizeof(char) * 200);
             strcpy(sql_insert, "INSERT INTO user(username, passwd) VALUES(");
             strcat(sql_insert, "'");
@@ -520,18 +524,17 @@ http_conn::HTTP_CODE http_conn::do_request()
             else
                 strcpy(m_url, "/registerError.html");
         }
-        //如果是登录，直接判断
-        //若浏览器端输入的用户名和密码在表中可以查找到，返回1，否则返回0
+        // 登录
         else if (*(p + 1) == '2')
         {
+            // 如果在能找到这个用户和密码
             if (users.find(name) != users.end() && users[name] == password)
                 strcpy(m_url, "/welcome.html");
             else
                 strcpy(m_url, "/logError.html");
         }
     }
-
-    // 如果请求资源为/0，表示跳转注册界面
+    // 0:跳转注册页面,GET
     if (*(p + 1) == '0')
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -541,8 +544,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         free(m_url_real);
     }
-
-    // 如果请求资源为/1，表示跳转登录界面
+    // 1:跳转登录界面,GET
     else if (*(p + 1) == '1')
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -551,8 +553,7 @@ http_conn::HTTP_CODE http_conn::do_request()
 
         free(m_url_real);
     }
-
-    // 如果请求资源为/5，表示跳转pic
+    // 5:显示图片页面,POST
     else if (*(p + 1) == '5')
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -561,7 +562,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         free(m_url_real);
     }
 
-    //如果请求资源为/6，表示跳转video
+    // 6:显示视频页面,POST
     else if (*(p + 1) == '6')
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -570,7 +571,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         free(m_url_real);
     }
 
-    //如果请求资源为/7，表示跳转fans
+    // 7:显示关注页面,POST
     else if (*(p + 1) == '7')
     {
         char *m_url_real = (char *)malloc(sizeof(char) * 200);
@@ -578,9 +579,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         strncpy(m_real_file + len, m_url_real, strlen(m_url_real));
         free(m_url_real);
     }
-
-    // 如果以上均不符合，即不是登录和注册，直接将url与网站目录拼接
-    // 这里的情况是welcome界面，请求服务器上的一个图片
+    // 以上均不符合发送url实际请求的文件
     else
     {
         strncpy(m_real_file + len, m_url, FILENAME_LEN - len - 1);
@@ -813,7 +812,7 @@ bool http_conn::process_write(HTTP_CODE ret)
             // 第一个iovec指针指向m_write_buf写缓冲区
             m_iv[0].iov_base = m_write_buf;
             m_iv[0].iov_len = m_write_idx;
-            // 第二个iovec指针指向共享内存mmap返回的m_file_address 
+            // 第二个iovec指针指向共享内存mmap返回的m_file_address
             m_iv[1].iov_base = m_file_address;
             m_iv[1].iov_len = m_file_stat.st_size;
             m_iv_count = 2;

@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
-project(toy_web_server VERSION 0.1)
+project(toy_web_server)
+
 set(SRC
         main.cpp
         ./config/config.cpp
@@ -9,7 +10,6 @@ set(SRC
         ./log/log.cpp
         ./CGImysql/sql_connection_pool.cpp
         )
-
 
 add_executable(${PROJECT_NAME} ${SRC})
 

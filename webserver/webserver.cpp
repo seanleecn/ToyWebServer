@@ -3,7 +3,7 @@
 // 主要完成服务器初始化：http连接、根目录、定时器
 WebServer::WebServer()
 {
-    // 数字保存全部的客户端信息
+    // 保存全部的客户端信息
     users = new http_conn[MAX_FD];
 
     // root文件夹路径
@@ -27,7 +27,7 @@ WebServer::~WebServer()
     delete m_pool;
 }
 
-// 1.初始化用户名、数据库等信息
+// 初始化用户名、数据库等信息
 void WebServer::init(int port, string user, string passWord, string databaseName, int log_write,
                      int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model)
 {
@@ -44,47 +44,47 @@ void WebServer::init(int port, string user, string passWord, string databaseName
     m_actormodel = actor_model;
 }
 
-// 2.初始化日志
+// 初始化日志
 void WebServer::log_write() const
 {
     if (0 == m_close_log)
     {
-        //初始化日志
+        // 异步日志
         if (1 == m_log_write)
             Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 800);
+        // 同步日志
         else
             Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 0);
     }
 }
 
-// 3.初始化数据库连接池
+// 初始化数据库连接池
 void WebServer::sql_pool()
 {
-    //初始化数据库连接池
     m_connPool = connection_pool::GetInstance();
     m_connPool->init("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
 
-    //初始化数据库读取表
+    // 初始化数据库读取表
     users->initmysql_result(m_connPool);
 }
 
-// 4.创建线程池
+// 创建线程池
 void WebServer::thread_pool()
 {
     // 线程池,线程池的任务是http_conn
     m_pool = new threadpool<http_conn>(m_actormodel, m_connPool, m_thread_num);
 }
 
-//5.设置epoll的触发模式
+// 设置epoll的触发模式
 void WebServer::trig_mode()
 {
-    //LT + LT
+    // LT + LT
     if (0 == m_TRIGMode)
     {
         m_LISTENTrigmode = 0;
         m_CONNTrigmode = 0;
     }
-    //LT + ET
+    // LT + ET
     else if (1 == m_TRIGMode)
     {
         m_LISTENTrigmode = 0;
@@ -104,7 +104,7 @@ void WebServer::trig_mode()
     }
 }
 
-//6.创建网络编程
+// 设置监听socket，epoll和定时器
 void WebServer::eventListen()
 {
     //网络编程基础步骤
@@ -124,9 +124,7 @@ void WebServer::eventListen()
     }
 
     int ret = 0;
-    struct sockaddr_in address
-    {
-    };
+    struct sockaddr_in address;
     bzero(&address, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -141,7 +139,7 @@ void WebServer::eventListen()
 
     utils.init(TIMESLOT);
 
-    //epoll创建内核事件表
+    // epoll创建内核事件表
     epoll_event events[MAX_EVENT_NUMBER];
     m_epollfd = epoll_create(5);
     assert(m_epollfd != -1);
@@ -151,7 +149,6 @@ void WebServer::eventListen()
 
     // 创建管道，管道写端写入信号值，管道读端通过I/O复用系统监测读事件
     // 设置信号处理函数SIGALRM（时间到了触发）和SIGTERM（kill会触发，Ctrl+C）
-
     // socketpair相当于两端可读可写的pipe
     ret = socketpair(PF_UNIX, SOCK_STREAM, 0, m_pipefd);
     assert(ret != -1);
@@ -167,7 +164,7 @@ void WebServer::eventListen()
     // 每隔TIMESLOT时间触发SIGALRM信号
     alarm(TIMESLOT);
 
-    //工具类,信号和描述符基础操作
+    // 工具类,信号和描述符基础操作
     Utils::u_pipefd = m_pipefd;
     Utils::u_epollfd = m_epollfd;
 }
@@ -223,7 +220,7 @@ bool WebServer::dealclinetdata()
 {
     struct sockaddr_in client_address;
     socklen_t client_addrlength = sizeof(client_address);
-    //LT模式
+    // LT模式
     if (0 == m_LISTENTrigmode)
     {
         int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
@@ -240,7 +237,7 @@ bool WebServer::dealclinetdata()
         }
         timer(connfd, client_address);
     }
-    //ET模式
+    // ET模式
     else
     {
         while (true)
@@ -408,7 +405,7 @@ void WebServer::dealwithwrite(int sockfd)
     }
 }
 
-// 7 事件回环（即服务器主线程）
+// 事件回环（即服务器主线程）
 void WebServer::eventLoop()
 {
     bool timeout = false;
@@ -428,7 +425,7 @@ void WebServer::eventLoop()
         for (int i = 0; i < number; i++)
         {
             int sockfd = events[i].data.fd; // 事件表中就绪的socket文件描述符
-            //7.1 处理用户连接
+            // 7.1 处理用户连接
             if (sockfd == m_listenfd)
             {
                 bool flag = dealclinetdata(); // 添加了定时事件

@@ -29,17 +29,14 @@ private:
     void run();
 
 private:
-    int m_thread_number;  // 线程池中的线程数
-    pthread_t *m_threads; // 描述线程池的数组，其大小为m_thread_number
-
-    std::list<T *> m_workqueue; // 请求队列
-    int m_max_requests;         // 请求队列中允许的最大请求数
-    locker m_queuelocker;       // 请求队列的互斥锁
-    sem m_queuestat;            // 是否有任务需要处理
-
-    connection_pool *m_connPool; // 数据库
-
-    int m_actor_model; // 模型切换(Reactor/Proactor)
+    int m_thread_number;         // 线程池中的线程数
+    pthread_t *m_threads;        // 线程池的数组，其大小为m_thread_number
+    std::list<T *> m_workqueue;  // 请求队列
+    int m_max_requests;          // 请求队列中允许的最大请求数
+    locker m_queuelocker;        // 请求队列的互斥锁
+    sem m_queuestat;             // 是否有任务需要处理
+    connection_pool *m_connPool; // 数据库连接池
+    int m_actor_model;           // 模型切换(Reactor/Proactor)
 };
 
 template <typename T>
@@ -52,13 +49,12 @@ threadpool<T>::threadpool(int actor_model, connection_pool *connPool, int thread
     m_threads = new pthread_t[m_thread_number];
     if (!m_threads)
         throw std::exception();
-
     // 创建thread_number个线程(根据硬件性能)
     for (int i = 0; i < thread_number; ++i)
     {
         // pthread_create函数原型中的第三个参数，为函数指针，指向处理线程函数的地址
-        // 若线程函数为类成员函数，则this指针会作为默认的参数被传进函数中，从而和线程函数参数(void*)不能匹配
-        // 静态成员函数就没有这个问题，因为里面没有this指针。
+        // 若weoker是成员函数，则this指针会作为默认的参数被传进函数中，从而和线程函数参数(void*)不能匹配
+        // 静态函数worker没有this指针，不能调用成员函数，因此把this作为参数传给worker
         if (pthread_create(m_threads + i, NULL, worker, this) != 0)
         {
             delete[] m_threads;
@@ -89,8 +85,9 @@ bool threadpool<T>::append(T *request, int state)
         m_queuelocker.unlock();
         return false;
     }
-    // 读写事件
-    request->m_state = state;
+    // 和proactor模式不同的在于要标记IO事件类别
+    // 读为0, 写为1
+    request->m_state = state; 
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
     m_queuestat.post();
@@ -118,8 +115,6 @@ bool threadpool<T>::append_p(T *request)
 template <typename T>
 void *threadpool<T>::worker(void *arg)
 {
-    // 静态函数不能访问类成员函数(没有this指针)
-    // 而worker函数的参数是this指针，因此下面的参数就是获得类对象的this指
     threadpool *pool = (threadpool *)arg;
     //线程池中每一个线程创建时都会调用run()，睡眠在队列中
     pool->run();
@@ -134,7 +129,7 @@ void threadpool<T>::run()
     while (true)
     {
         // 由于这部分代码是在死循环中，为了避免发生队列没有元素也加锁的情况发生
-        // 信号量等待append函数添加资源后才进行加锁
+        // 先等待信号量，当有资源的时候，操作请求队列(要加锁)
         m_queuestat.wait();
         m_queuelocker.lock();
         if (m_workqueue.empty())
@@ -149,7 +144,7 @@ void threadpool<T>::run()
         // 获取到了请求，处理请求
         if (!request)
             continue;
-        //Reactor
+        // Reactor
         if (1 == m_actor_model)
         {
             if (0 == request->m_state)
@@ -179,7 +174,7 @@ void threadpool<T>::run()
                 }
             }
         }
-        //default:Proactor
+        // default:Proactor
         else
         {
             // 连接mysql

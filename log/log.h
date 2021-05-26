@@ -10,6 +10,7 @@
 
 using namespace std;
 
+// 单例模式
 class Log
 {
 public:
@@ -47,20 +48,21 @@ private:
     }
 
 private:
-    char dir_name[128]{}; //路径名
-    char log_name[128]{}; //log文件名
-    int m_split_lines{};  //日志最大行数
-    int m_log_buf_size{}; //日志缓冲区大小
-    long long m_count;  //日志行数记录
-    int m_today{};        //因为按天分类,记录当前时间是那一天
-    FILE *m_fp{};         //打开log的文件指针
-    char *m_buf{};
-    block_queue<string> *m_log_queue{}; //阻塞队列
+    char dir_name[128];               //路径名
+    char log_name[128];               //log文件名
+    int m_split_lines;                //日志最大行数
+    int m_log_buf_size;               //日志缓冲区大小
+    long long m_count;                //日志行数记录
+    int m_today;                      //因为按天分类,记录当前时间是那一天
+    FILE *m_fp;                       //打开log的文件指针
+    char *m_buf;                      //要输出的内容
+    block_queue<string> *m_log_queue; //阻塞队列
     bool m_is_async;                  //是否同步标志位
-    locker m_mutex;
-    int m_close_log{}; //关闭日志
+    locker m_mutex;                   //同步类
+    int m_close_log{};                //关闭日志
 };
 
+// 这四个宏定义在其他文件中使用，主要用于不同类型的日志输出
 #define LOG_DEBUG(format, ...)                                    \
     if (0 == m_close_log)                                         \
     {                                                             \
