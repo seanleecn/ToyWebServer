@@ -18,7 +18,7 @@ class connection_pool
 public:
 	MYSQL *GetConnection();				 //获取数据库连接
 	bool ReleaseConnection(MYSQL *conn); //释放连接
-	int GetFreeConn() const;					 //获取连接
+	int GetFreeConn() const;			 //获取连接
 	void DestroyPool();					 //销毁所有连接
 
 	//单例模式 这个是利用局部静态变量懒汉模式实现单例（多线程不友好）
@@ -28,7 +28,7 @@ public:
 	//PS-C++11之后局部静态变量线程安全
 	static connection_pool *GetInstance();
 
-	void init(const string& url, const string& User, const string& PassWord, const string& DataBaseName, int Port, int MaxConn, int close_log);
+	void init(const string &url, const string &User, const string &PassWord, const string &DataBaseName, int Port, int MaxConn, int close_log);
 
 private:
 	connection_pool();

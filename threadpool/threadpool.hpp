@@ -52,7 +52,8 @@ threadpool<T>::threadpool(int actor_model, connection_pool *connPool, int thread
     m_threads = new pthread_t[m_thread_number];
     if (!m_threads)
         throw std::exception();
-    // 创建thread_number个线程并设置为脱离线程(脱离后的线程在脱离后自动释放占用的资源)
+
+    // 创建thread_number个线程(根据硬件性能)
     for (int i = 0; i < thread_number; ++i)
     {
         // pthread_create函数原型中的第三个参数，为函数指针，指向处理线程函数的地址
@@ -63,6 +64,7 @@ threadpool<T>::threadpool(int actor_model, connection_pool *connPool, int thread
             delete[] m_threads;
             throw std::exception();
         }
+        // 设置为脱离线程，脱离后的线程在脱离后自动释放占用的资源
         if (pthread_detach(m_threads[i]))
         {
             delete[] m_threads;
@@ -95,7 +97,7 @@ bool threadpool<T>::append(T *request, int state)
     return true;
 }
 
-// proactor模式下的请求入队
+// proactor模式下的请求入队(默认)
 template <typename T>
 bool threadpool<T>::append_p(T *request)
 {
@@ -107,6 +109,7 @@ bool threadpool<T>::append_p(T *request)
     }
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
+    // 信号量提醒有新的任务要处理
     m_queuestat.post();
     return true;
 }
@@ -123,12 +126,15 @@ void *threadpool<T>::worker(void *arg)
     return pool;
 }
 
-// 线程池中的所有线程都睡眠，等待请求队列中新增任务
+// 工作线程从请求队列中取出某个任务进行处理
 template <typename T>
 void threadpool<T>::run()
 {
+    // TODO:死循环是否应该改为flag判断
     while (true)
     {
+        // 由于这部分代码是在死循环中，为了避免发生队列没有元素也加锁的情况发生
+        // 信号量等待append函数添加资源后才进行加锁
         m_queuestat.wait();
         m_queuelocker.lock();
         if (m_workqueue.empty())
@@ -136,7 +142,8 @@ void threadpool<T>::run()
             m_queuelocker.unlock();
             continue;
         }
-        T *request = m_workqueue.front(); // 获取第一个任务
+        // 获取队列中的第一个任务
+        T *request = m_workqueue.front();
         m_workqueue.pop_front();
         m_queuelocker.unlock();
         // 获取到了请求，处理请求
@@ -177,6 +184,7 @@ void threadpool<T>::run()
         {
             // 连接mysql
             connectionRAII mysqlcon(&request->mysql, m_connPool);
+            // process(模板类中的方法,这里是http类)进行处理
             request->process();
         }
     }
