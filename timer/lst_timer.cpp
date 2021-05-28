@@ -235,7 +235,7 @@ void Utils::addsig(int sig, void(handler)(int), bool restart)
 void Utils::timer_handler()
 {
     m_timer_lst.tick();
-    //最小的时间单位为5s
+    // 最小的时间单位为5s
     alarm(m_TIMESLOT);
 }
 

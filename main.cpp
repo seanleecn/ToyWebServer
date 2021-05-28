@@ -33,8 +33,8 @@ int main(int argc, char *argv[])
     server.thread_pool();
 
     // 设置epoll的触发模式
-    // TODO:这个感觉没必要
-    server.trig_mode();
+    // TODO:这个感觉没必要，可以整合到WebServer::init()里面
+    // server.trig_mode();
 
     // 设置监听socket，epoll和定时器
     server.eventListen();

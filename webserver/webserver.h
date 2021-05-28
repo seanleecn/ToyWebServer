@@ -73,6 +73,7 @@ public:
     int m_listenfd;
     int m_OPT_LINGER;     // 优雅关闭链接，默认不使用
     
+    // 触发模式
     int m_TRIGMode;       // 触发组合模式,默认listenfd LT + connfd LT
     int m_LISTENTrigmode; // listenfd触发模式，默认LT
     int m_CONNTrigmode;   // connfd触发模式，默认LT

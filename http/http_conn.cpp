@@ -15,7 +15,7 @@ const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
 // TODO:下面这些全局变量应该是在webserver这个类里面吧
-locker m_lock;             
+locker m_lock;
 map<string, string> users; // map用来存储数据库里面已经有的用户密码
 // 下面两个是static变量
 int http_conn::m_user_count = 0;
@@ -465,7 +465,8 @@ http_conn::HTTP_CODE http_conn::process_read()
 // 对请求进行分析
 http_conn::HTTP_CODE http_conn::do_request()
 {
-    strcpy(m_real_file, doc_root); // 把doc_root拷贝到m_real_file
+    // 把doc_root拷贝到m_real_file
+    strcpy(m_real_file, doc_root);
     int len = strlen(doc_root);
 
     // p是/所在的位置,根据p后面的字符判断是登录还是注册
@@ -619,7 +620,7 @@ void http_conn::unmap()
     }
 }
 
-// 服务器子线程调用process_write完成响应报文，随后注册epollout事件
+// 服务器子线程调用process_write完成响应报文，随后注册epollout事件(可写)
 // 服务器主线程检测写事件，调用write函数将响应报文发送给浏览器端
 bool http_conn::write()
 {
@@ -630,13 +631,13 @@ bool http_conn::write()
         init();
         return true;
     }
-    // writev分散写
-    // 根据返回值更新byte_have_send和iovec结构体的指针和长度，并判断响应报文整体是否发送成功
+    // 保证一次性发完
     while (1)
     {
-        // 将响应报文的状态行、消息头、空行和响应正文发送给浏览器端
+        // 调用分散写writev函数把状态行、消息头、空行和响应正文写到TCP socket的发送缓冲区
+        // m_iv数组保存了报文和mmap映射到内存中的文件的地址
+        // 返回正常发送字节数
         temp = writev(m_sockfd, m_iv, m_iv_count);
-        // 正常发送temp是发送的字节数
         // 处理错误
         if (temp < 0)
         {
@@ -652,8 +653,8 @@ bool http_conn::write()
             return false;
         }
 
-        bytes_have_send += temp; //更新已发送字节
-        bytes_to_send -= temp;   //更新未发送字节
+        bytes_have_send += temp; // 更新已发送字节
+        bytes_to_send -= temp;   // 更新未发送字节
 
         // 第一个iovec头部信息的数据已发送完，发送第二个iovec数据
         if (bytes_have_send >= m_iv[0].iov_len)
@@ -673,9 +674,7 @@ bool http_conn::write()
         // 判断条件，数据已全部发送完
         if (bytes_to_send <= 0)
         {
-            // 如果发送失败，但不是缓冲区问题，取消映射
             unmap();
-            // 重新注册写事件
             modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
 
             // 浏览器的请求为长连接

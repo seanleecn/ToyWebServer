@@ -48,7 +48,7 @@ void connection_pool::init(const string &url, const string &User, const string &
 		connList.push_back(con);
 		++m_FreeConn;
 	}
-	// 将信号量初始化为最大连接次数
+	// 信号量表示当前还有多少个数据库连接可用
 	reserve = sem(m_FreeConn);
 
 	m_MaxConn = m_FreeConn;

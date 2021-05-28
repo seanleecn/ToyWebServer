@@ -174,7 +174,7 @@ void WebServer::eventListen()
 // 初始化定时器
 void WebServer::timer(int connfd, struct sockaddr_in client_address)
 {
-    // 分配socket
+    // 将connfd注册到内核事件表
     users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
 
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
@@ -216,11 +216,13 @@ void WebServer::deal_timer(util_timer *timer, int sockfd)
 /************************** 定时器相关的函数 **************************/
 
 // 7.1 处理用户连接
+// 执行了accept得到一个connfd
+// 分配了定时器
 bool WebServer::dealclinetdata()
 {
     struct sockaddr_in client_address;
     socklen_t client_addrlength = sizeof(client_address);
-    // LT模式
+    // LT模式(默认)
     if (0 == m_LISTENTrigmode)
     {
         int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
@@ -240,6 +242,7 @@ bool WebServer::dealclinetdata()
     // ET模式
     else
     {
+        // TODO:这个死循环没理解
         while (true)
         {
             // accept返回了一个新的connfd用于send()和recv()
@@ -285,17 +288,13 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server)
         //处理信号值对应的逻辑
         for (int i = 0; i < ret; ++i)
         {
-
-            //这里面明明是字符
             switch (signals[i])
             {
-            //这里是整型
             case SIGALRM:
             {
                 timeout = true;
                 break;
             }
-            //关闭服务器
             case SIGTERM:
             {
                 stop_server = true;
@@ -362,7 +361,7 @@ void WebServer::dealwithread(int sockfd)
 void WebServer::dealwithwrite(int sockfd)
 {
     util_timer *timer = users_timer[sockfd].timer;
-    //reactor
+    // reactor
     if (1 == m_actormodel)
     {
         if (timer)
@@ -388,7 +387,7 @@ void WebServer::dealwithwrite(int sockfd)
     }
     else
     {
-        //proactor
+        // proactor
         if (users[sockfd].write())
         {
             LOG_INFO("send data to the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
@@ -435,8 +434,9 @@ void WebServer::eventLoop()
             // 处理异常事件
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
-                // 服务器端关闭连接，移除对应的定时器
+                // 服务器端关闭连接
                 util_timer *timer = users_timer[sockfd].timer;
+                // 移除对应的定时器
                 deal_timer(timer, sockfd);
             }
             // 7.2处理定时器信号

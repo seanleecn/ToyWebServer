@@ -46,6 +46,7 @@ public:
 	int m_close_log;	   // 日志开关
 };
 
+// RAII方法获得一个连接
 class connectionRAII
 {
 public:
