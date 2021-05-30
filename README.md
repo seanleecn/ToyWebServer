@@ -116,6 +116,12 @@ http连接处理类
     
     // 添加用户数据
     INSERT INTO user(username, passwd) VALUES('lx', '123');
+
+    // 查看当前全部用户密码
+    use webserDb;
+    show tables;
+    select * from user;
+    
     ```
     
 * 修改main.cpp中的数据库初始化信息

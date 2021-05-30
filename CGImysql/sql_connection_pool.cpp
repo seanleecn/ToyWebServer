@@ -19,7 +19,7 @@ connection_pool *connection_pool::GetInstance()
 }
 
 // 初始化
-void connection_pool::init(const string &url, const string &User, const string &PassWord, const string &DBName, int Port, int MaxConn, int close_log)
+void connection_pool::init_sql_pool(const string &url, const string &User, const string &PassWord, const string &DBName, int Port, int MaxConn, int close_log)
 {
 	// 初始化数据库信息
 	m_url = url;

@@ -24,7 +24,7 @@ public:
 	void DestroyPool();					   // 销毁所有连接(析构调用)
 	static connection_pool *GetInstance(); // 获取一个实例
 
-	void init(const string &url, const string &User, const string &PassWord, const string &DataBaseName, int Port, int MaxConn, int close_log);
+	void init_sql_pool(const string &url, const string &User, const string &PassWord, const string &DataBaseName, int Port, int MaxConn, int close_log);
 
 private:
 	connection_pool();

@@ -110,10 +110,10 @@ public:
         return &m_address;
     }
 
-    //初始化数据库读取线程
+    // 初始化数据库读取线程
     void initmysql_result(connection_pool *connPool) const;
 
-    //时间事件类型
+    // 时间事件类型
     int timer_flag;
     int improv;
 

@@ -19,7 +19,7 @@ void sort_timer_lst::add_timer(util_timer *timer)
     {
         return;
     }
-    // 如果
+    // 如果当前链表为空
     if (!head)
     {
         head = tail = timer;
@@ -108,7 +108,7 @@ void sort_timer_lst::del_timer(util_timer *timer)
     delete timer;
 }
 
-//定时任务处理函数
+// 清理到期的链表节点，调用了cb_func()
 void sort_timer_lst::tick()
 {
     if (!head)
@@ -116,15 +116,15 @@ void sort_timer_lst::tick()
         return;
     }
 
-    //获取当前时间
+    // 获取当前时间
     time_t cur = time(nullptr);
 
-    //遍历定时器链表
+    // 遍历定时器链表
     util_timer *tmp = head;
     while (tmp)
     {
         // 链表容器为升序排列
-        // 当前时间小于定时器的超时时间，后面的定时器也没有到期
+        // 当前时间小于头部定时器的超时时间，后面的定时器也没有到期，直接跳出
         if (cur < tmp->expire)
         {
             break;
@@ -144,13 +144,13 @@ void sort_timer_lst::tick()
     }
 }
 
-// 具体的插入timer方法
-// 遍历一遍双向链表找到对应的位置
+// 找到应该插入的地方
 // TODO:使用C++11的优先队列实现定时器
 void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
 {
     util_timer *prev = lst_head;
     util_timer *tmp = prev->next;
+    // 遍历链表，找到合适的位置
     while (tmp)
     {
         if (timer->expire < tmp->expire)
@@ -207,7 +207,7 @@ void Utils::addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
 }
 
 // 信号处理函数
-// 仅通过管道发送信号值，不处理信号对应的逻辑,减少对主程序的影响
+// 把当前信号值写到管道[1]端
 void Utils::sig_handler(int sig)
 {
     // 为保证函数的可重入性，保留原来的errno
@@ -245,19 +245,20 @@ void Utils::show_error(int connfd, const char *info)
     close(connfd);
 }
 
+// TODO:下面两个static变量在这里初始化？没问题吗
 int *Utils::u_pipefd = nullptr;
 int Utils::u_epollfd = 0;
 
 class Utils;
 
-//定时器回调函数:从内核事件表删除事件，关闭文件描述符，释放连接资源
+// 定时器回调函数:从内核事件表删除事件，关闭文件描述符，释放连接资源
 void cb_func(client_data *user_data)
 {
-    //删除非活动连接在socket上的注册事件
+    // 删除非活动连接在socket上的注册事件
     epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, nullptr);
     assert(user_data);
-    //删除非活动连接在socket上的注册事件
+    // 删除非活动连接在socket上的注册事件
     close(user_data->sockfd);
-    //减少连接数
+    // 减少连接数
     http_conn::m_user_count--;
 }
