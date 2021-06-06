@@ -1,9 +1,8 @@
-#include "lst_timer.h"
-#include "../http/http_conn.h"
+#include "timer.h"
 
-sort_timer_lst::~sort_timer_lst()
+timer_list::~timer_list()
 {
-    util_timer *tmp = head;
+    timer_node *tmp = head;
     while (tmp)
     {
         head = tmp->next;
@@ -13,7 +12,7 @@ sort_timer_lst::~sort_timer_lst()
 }
 
 // 添加定时器
-void sort_timer_lst::add_timer(util_timer *timer)
+void timer_list::add_timer(timer_node *timer)
 {
     if (!timer)
     {
@@ -38,7 +37,7 @@ void sort_timer_lst::add_timer(util_timer *timer)
 }
 
 // 调整定时器，任务发生变化时，调整定时器在链表中的位置
-void sort_timer_lst::adjust_timer(util_timer *timer)
+void timer_list::adjust_timer(timer_node *timer)
 {
     if (!timer)
     {
@@ -69,7 +68,7 @@ void sort_timer_lst::adjust_timer(util_timer *timer)
 }
 
 //删除定时器:即是双向链表节点的删除
-void sort_timer_lst::del_timer(util_timer *timer)
+void timer_list::del_timer(timer_node *timer)
 {
     if (!timer)
     {
@@ -109,7 +108,7 @@ void sort_timer_lst::del_timer(util_timer *timer)
 }
 
 // 清理到期的链表节点，调用了cb_func()
-void sort_timer_lst::tick()
+void timer_list::tick()
 {
     if (!head)
     {
@@ -120,7 +119,7 @@ void sort_timer_lst::tick()
     time_t cur = time(nullptr);
 
     // 遍历定时器链表
-    util_timer *tmp = head;
+    timer_node *tmp = head;
     while (tmp)
     {
         // 链表容器为升序排列
@@ -146,10 +145,10 @@ void sort_timer_lst::tick()
 
 // 找到应该插入的地方
 // TODO:使用C++11的优先队列实现定时器
-void sort_timer_lst::add_timer(util_timer *timer, util_timer *lst_head)
+void timer_list::add_timer(timer_node *timer, timer_node *lst_head)
 {
-    util_timer *prev = lst_head;
-    util_timer *tmp = prev->next;
+    timer_node *prev = lst_head;
+    timer_node *tmp = prev->next;
     // 遍历链表，找到合适的位置
     while (tmp)
     {

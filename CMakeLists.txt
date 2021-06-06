@@ -7,7 +7,7 @@ set(SRC
         ./http/http_conn.cpp
         ./log/log.cpp
         ./webserver/webserver.cpp
-        ./timer/lst_timer.cpp   
+        ./timer/timer.cpp   
 )
 
 add_executable(${PROJECT_NAME} ${SRC})

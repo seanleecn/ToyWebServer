@@ -15,7 +15,7 @@
 #include "../threadpool/threadpool.hpp"
 #include "../http/http_conn.h"
 #include "../config/config.hpp"
-#include "../timer/lst_timer.h"
+#include "../timer/timer.h"
 
 const int MAX_FD = 65536;           //最大文件描述符
 const int MAX_EVENT_NUMBER = 10000; //最大事件数
@@ -36,8 +36,8 @@ public:
     void eventListen();
     void eventLoop();
     void timer(int connfd, struct sockaddr_in client_address);
-    void adjust_timer(util_timer *timer);
-    void deal_timer(util_timer *timer, int sockfd);
+    void adjust_timer(timer_node *timer);
+    void deal_timer(timer_node *timer, int sockfd);
     bool dealclinetdata();
     bool dealwithsignal(bool &timeout, bool &stop_server);
     void dealwithread(int sockfd);

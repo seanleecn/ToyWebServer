@@ -213,7 +213,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
     users_timer[connfd].address = client_address;
     users_timer[connfd].sockfd = connfd;
-    auto *timer = new util_timer;
+    auto *timer = new timer_node;
     timer->user_data = &users_timer[connfd];
     timer->cb_func = cb_func;
     time_t cur = time(nullptr);
@@ -226,7 +226,7 @@ void WebServer::timer(int connfd, struct sockaddr_in client_address)
 
 // 若有数据传输，则将定时器往后延迟3个单位
 // 并对新的定时器在链表上的位置进行调整
-void WebServer::adjust_timer(util_timer *timer)
+void WebServer::adjust_timer(timer_node *timer)
 {
     time_t cur = time(nullptr);
     timer->expire = cur + 3 * TIMESLOT;
@@ -236,7 +236,7 @@ void WebServer::adjust_timer(util_timer *timer)
 }
 
 // 关闭定时器
-void WebServer::deal_timer(util_timer *timer, int sockfd)
+void WebServer::deal_timer(timer_node *timer, int sockfd)
 {
     timer->cb_func(&users_timer[sockfd]);
     if (timer)
@@ -341,7 +341,7 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server)
 void WebServer::dealwithread(int sockfd)
 {
     // 取出当前socket对应的定时器
-    util_timer *timer = users_timer[sockfd].timer;
+    timer_node *timer = users_timer[sockfd].timer;
 
     // reactor
     if (1 == m_actormodel)
@@ -391,7 +391,7 @@ void WebServer::dealwithread(int sockfd)
 // 7.4 写操作
 void WebServer::dealwithwrite(int sockfd)
 {
-    util_timer *timer = users_timer[sockfd].timer;
+    timer_node *timer = users_timer[sockfd].timer;
     // reactor
     if (1 == m_actormodel)
     {
@@ -466,7 +466,7 @@ void WebServer::eventLoop()
             else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
                 // 服务器端关闭连接
-                util_timer *timer = users_timer[sockfd].timer;
+                timer_node *timer = users_timer[sockfd].timer;
                 // 移除对应的定时器
                 deal_timer(timer, sockfd);
             }
