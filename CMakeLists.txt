@@ -3,13 +3,12 @@ project(toy_web_server)
 
 set(SRC
         main.cpp
-        ./config/config.cpp
-        ./webserver/webserver.cpp
-        ./timer/lst_timer.cpp
+        ./CGImysql/sql_connection_pool.cpp
         ./http/http_conn.cpp
         ./log/log.cpp
-        ./CGImysql/sql_connection_pool.cpp
-        )
+        ./webserver/webserver.cpp
+        ./timer/lst_timer.cpp   
+)
 
 add_executable(${PROJECT_NAME} ${SRC})
 

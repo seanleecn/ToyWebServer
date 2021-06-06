@@ -1,4 +1,4 @@
-#include "./config/config.h"
+#include "./webserver/webserver.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,17 +10,14 @@ int main(int argc, char *argv[])
     // 命令行解析
     Config config;
     config.parse_arg(argc, argv);
-    
+
     // 服务器初始化
     // new了两个数组保存连接和定时器
     WebServer server;
 
     // 把解析的参数赋值给服务器
-    server.init(config.PORT, user, passwd, databasename, config.LOGWrite,
-                config.OPT_LINGER, config.TRIGMode, config.sql_num, config.thread_num,
-                config.close_log, config.actor_model);
+    server.init(user, passwd, databasename, config);
 
-    // 初始化日志
     // 单例模式获取一个日志的实例
     server.log_write();
 

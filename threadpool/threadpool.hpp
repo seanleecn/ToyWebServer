@@ -87,7 +87,7 @@ bool threadpool<T>::append(T *request, int state)
     }
     // 和proactor模式不同的在于要标记IO事件类别
     // reactor模式下的读写由子线程执行
-    request->m_state = state; 
+    request->m_state = state;
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
     m_queuestat.post();

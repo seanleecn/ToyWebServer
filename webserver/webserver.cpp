@@ -28,20 +28,20 @@ WebServer::~WebServer()
 }
 
 // 初始化用户名、数据库等信息
-void WebServer::init(int port, string user, string passWord, string databaseName, int log_write,
-                     int opt_linger, int trigmode, int sql_num, int thread_num, int close_log, int actor_model)
+void WebServer::init(string user, string passWord, string databaseName, // 数据库参数
+                     Config config)                                     // 解析的参数
 {
-    m_port = port;
     m_user = user;
     m_passWord = passWord;
     m_databaseName = databaseName;
-    m_sql_num = sql_num;
-    m_thread_num = thread_num;
-    m_log_write = log_write;
-    m_OPT_LINGER = opt_linger;
-    m_TRIGMode = trigmode;
-    m_close_log = close_log;
-    m_actormodel = actor_model;
+    m_port = config.m_port;
+    m_sql_num = config.m_sqlNum;
+    m_thread_num = config.m_threadNum;
+    m_log_write = config.m_logWrite;
+    m_OPT_LINGER = config.m_linger;
+    m_TRIGMode = config.m_triggerMode;
+    m_close_log = config.m_closeLog;
+    m_actormodel = config.m_actorMode;
     // LT + LT
     if (0 == m_TRIGMode)
     {
@@ -68,7 +68,7 @@ void WebServer::init(int port, string user, string passWord, string databaseName
     }
 }
 
-// 初始化日志
+// 单例模式获取一个日志的实例
 void WebServer::log_write() const
 {
     if (0 == m_close_log)
@@ -82,10 +82,10 @@ void WebServer::log_write() const
     }
 }
 
-// 初始化数据库连接池
+// 单例模式初始化数据库连接池
 void WebServer::sql_pool()
 {
-    m_connPool = connection_pool::GetInstance(); // 单例模式
+    m_connPool = connection_pool::GetInstance();
     m_connPool->init_sql_pool("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
     // 将数据库中的用户名和密码载入到服务器的map中来
     users->initmysql_result(m_connPool);
@@ -130,17 +130,20 @@ void WebServer::thread_pool()
 // 设置监听socket，epoll和定时器
 void WebServer::eventListen()
 {
-    //网络编程基础步骤
+    // 网络编程基础步骤
     m_listenfd = socket(PF_INET, SOCK_STREAM, 0);
     assert(m_listenfd >= 0);
 
-    //优雅关闭连接
-    // linger结构体第一个参数控制开关,第二个参数控制时间
+    // 优雅关闭连接
+    // 游双5.11.4 linger结构体第一个参数控制开关,第二个参数控制时间
+    // close函数采用默认行为(四次挥手)来关闭socket
     if (0 == m_OPT_LINGER)
     {
         struct linger tmp = {0, 1};
         setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));
     }
+    // 非阻塞的socket:调用close立即返回
+    // 阻塞的socket:  等待指定的时间后，直到残留数据发送完成且收到确认；否则close返回-1且errno为EWOUDLDBLOCK
     else if (1 == m_OPT_LINGER)
     {
         struct linger tmp = {1, 1};
@@ -173,7 +176,6 @@ void WebServer::eventListen()
     assert(m_epollfd != -1);
 
     // 设置listenfd为不开启oneshot以及触发模式
-    // TODO:为啥不开启oneshot
     utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
     http_conn::m_epollfd = m_epollfd; // http_conn中的epollfd是一个static全局变量
 

@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <cstring>
+#include <ctime>
+#include <cstdarg>
 #include "../lock/locker.hpp"
 
 using namespace std;

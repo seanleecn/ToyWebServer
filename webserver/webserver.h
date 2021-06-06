@@ -14,6 +14,8 @@
 
 #include "../threadpool/threadpool.hpp"
 #include "../http/http_conn.h"
+#include "../config/config.hpp"
+#include "../timer/lst_timer.h"
 
 const int MAX_FD = 65536;           //最大文件描述符
 const int MAX_EVENT_NUMBER = 10000; //最大事件数
@@ -25,9 +27,7 @@ public:
     WebServer();
     ~WebServer();
 
-    void init(int port, string user, string passWord, string databaseName,
-              int log_write, int opt_linger, int trigmode, int sql_num,
-              int thread_num, int close_log, int actor_model);
+    void init(string user, string passWord, string databaseName, Config config);
 
     void thread_pool();
     void sql_pool();
@@ -44,7 +44,7 @@ public:
     void dealwithwrite(int sockfd);
 
 public:
-    int m_port; // 端口号,默认9006
+    int m_port;   // 端口号,默认9006
     char *m_root; // root文件夹路径
 
     // 日志相关
@@ -71,8 +71,8 @@ public:
     epoll_event events[MAX_EVENT_NUMBER];
 
     int m_listenfd;
-    int m_OPT_LINGER;     // 优雅关闭链接，默认不使用
-    
+    int m_OPT_LINGER; // 优雅关闭链接，默认不使用
+
     // 触发模式
     int m_TRIGMode;       // 触发组合模式,默认listenfd LT + connfd LT
     int m_LISTENTrigmode; // listenfd触发模式，默认LT

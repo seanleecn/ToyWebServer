@@ -17,6 +17,7 @@ const char *error_500_form = "There was an unusual problem serving the request f
 // TODO:下面这些全局变量应该是在webserver这个类里面吧
 locker m_lock;
 map<string, string> users; // map用来存储数据库里面已经有的用户密码
+
 // 下面两个是static变量
 int http_conn::m_user_count = 0;
 int http_conn::m_epollfd = -1;
@@ -118,7 +119,7 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
 {
     m_sockfd = sockfd;
     m_address = addr;
-    // 内核事件表注册新事件，开启EPOLLONESHOT
+    //
     addfd(m_epollfd, sockfd, true, m_TRIGMode);
     m_user_count++;
 
@@ -680,7 +681,7 @@ bool http_conn::write()
             // 浏览器的请求为长连接
             if (m_linger)
             {
-                // 重新初始化HTTP对象**
+                // 重新初始化HTTP对象
                 init();
                 return true;
             }
