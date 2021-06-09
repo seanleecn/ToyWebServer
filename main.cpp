@@ -2,10 +2,10 @@
 
 int main(int argc, char *argv[])
 {
-    // 需要修改的数据库信息,登录名,密码,库名
-    string user = "root";
-    string passwd = "0419";
-    string databasename = "webserDb";
+    string user = "root";             // mysql账号
+    string passwd = "0419";           // mysql密码
+    string databasename = "webserDb"; // 数据库名
+    string rootPath = "../root";      // 资源目录
 
     // 命令行解析
     Config config;
@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
     WebServer server;
 
     // 把解析的参数赋值给服务器
-    server.init(user, passwd, databasename, config);
+    server.init(user, passwd, databasename, rootPath, config);
 
     // 单例模式获取一个日志的实例
     server.log_write();
@@ -29,14 +29,10 @@ int main(int argc, char *argv[])
     // 会创建m_thread_num个线程
     server.thread_pool();
 
-    // 设置epoll的触发模式
-    // TODO:整合到WebServer::init()里面
-    // server.trig_mode();
-
     // 设置监听socket，epoll和定时器
     server.eventListen();
 
-    // 事件回环（即服务器主线程）
+    // 事件回环(即服务器主线程)
     server.eventLoop();
 
     return 0;

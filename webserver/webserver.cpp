@@ -4,14 +4,9 @@
 WebServer::WebServer()
 {
     // 保存全部的客户端信息
-    users = new http_conn[MAX_FD];
+    conn_users = new http_conn[MAX_FD];
 
-    // root文件夹路径
-    char server_path[100] = "../root";
-    m_root = (char *)malloc(strlen(server_path) + 1);
-    strcpy(m_root, server_path);
-
-    // 定时器
+    // 保存全部定时器
     users_timer = new client_data[MAX_FD];
 }
 
@@ -22,46 +17,45 @@ WebServer::~WebServer()
     close(m_listenfd);
     close(m_pipefd[1]);
     close(m_pipefd[0]);
-    delete[] users;
+    delete[] conn_users;
     delete[] users_timer;
     delete m_pool;
 }
 
 // 初始化用户名、数据库等信息
-void WebServer::init(string user, string passWord, string databaseName, // 数据库参数
-                     Config config)                                     // 解析的参数
+void WebServer::init(string user, string passWord, string databaseName, string rootPath, Config config)
 {
     m_user = user;
     m_passWord = passWord;
     m_databaseName = databaseName;
+    m_root = (char *)rootPath.c_str();
+
     m_port = config.m_port;
     m_sql_num = config.m_sqlNum;
     m_thread_num = config.m_threadNum;
     m_log_write = config.m_logWrite;
     m_OPT_LINGER = config.m_linger;
-    m_TRIGMode = config.m_triggerMode;
     m_close_log = config.m_closeLog;
     m_actormodel = config.m_actorMode;
-    // LT + LT
-    if (0 == m_TRIGMode)
+
+    // 配置触发模式
+    m_TRIGMode = config.m_triggerMode;
+    if (0 == m_TRIGMode) // LT + LT
     {
         m_LISTENTrigmode = 0;
         m_CONNTrigmode = 0;
     }
-    // LT + ET
-    else if (1 == m_TRIGMode)
+    else if (1 == m_TRIGMode) // LT + ET
     {
         m_LISTENTrigmode = 0;
         m_CONNTrigmode = 1;
     }
-    // ET + LT
-    else if (2 == m_TRIGMode)
+    else if (2 == m_TRIGMode) // ET + LT
     {
         m_LISTENTrigmode = 1;
         m_CONNTrigmode = 0;
     }
-    // ET + ET
-    else if (3 == m_TRIGMode)
+    else if (3 == m_TRIGMode) // ET + ET
     {
         m_LISTENTrigmode = 1;
         m_CONNTrigmode = 1;
@@ -88,7 +82,7 @@ void WebServer::sql_pool()
     m_connPool = connection_pool::GetInstance();
     m_connPool->init_sql_pool("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
     // 将数据库中的用户名和密码载入到服务器的map中来
-    users->initmysql_result(m_connPool);
+    conn_users->initmysql_result(m_connPool);
 }
 
 // 创建线程池
@@ -97,35 +91,6 @@ void WebServer::thread_pool()
     // 线程池,线程池的任务是http_conn
     m_pool = new threadpool<http_conn>(m_actormodel, m_connPool, m_thread_num);
 }
-
-// 设置epoll的触发模式
-// void WebServer::trig_mode()
-// {
-//     // LT + LT
-//     if (0 == m_TRIGMode)
-//     {
-//         m_LISTENTrigmode = 0;
-//         m_CONNTrigmode = 0;
-//     }
-//     // LT + ET
-//     else if (1 == m_TRIGMode)
-//     {
-//         m_LISTENTrigmode = 0;
-//         m_CONNTrigmode = 1;
-//     }
-//     // ET + LT
-//     else if (2 == m_TRIGMode)
-//     {
-//         m_LISTENTrigmode = 1;
-//         m_CONNTrigmode = 0;
-//     }
-//     // ET + ET
-//     else if (3 == m_TRIGMode)
-//     {
-//         m_LISTENTrigmode = 1;
-//         m_CONNTrigmode = 1;
-//     }
-// }
 
 // 设置监听socket，epoll和定时器
 void WebServer::eventListen()
@@ -208,7 +173,7 @@ void WebServer::eventListen()
 void WebServer::timer(int connfd, struct sockaddr_in client_address)
 {
     // 将connfd注册到内核事件表
-    users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
+    conn_users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
 
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
     users_timer[connfd].address = client_address;
@@ -352,18 +317,18 @@ void WebServer::dealwithread(int sockfd)
             adjust_timer(timer); // 将定时器往后延迟15s
         }
         // 若监测到读事件，将该事件放入请求队列
-        m_pool->append(users + sockfd, 0);
+        m_pool->append(conn_users + sockfd, 0);
         while (true)
         {
             // TODO:这个没懂
-            if (1 == users[sockfd].improv)
+            if (1 == conn_users[sockfd].improv)
             {
-                if (1 == users[sockfd].timer_flag)
+                if (1 == conn_users[sockfd].timer_flag)
                 {
                     deal_timer(timer, sockfd);
-                    users[sockfd].timer_flag = 0;
+                    conn_users[sockfd].timer_flag = 0;
                 }
-                users[sockfd].improv = 0;
+                conn_users[sockfd].improv = 0;
                 break;
             }
         }
@@ -371,11 +336,11 @@ void WebServer::dealwithread(int sockfd)
     // proactor
     else
     {
-        if (users[sockfd].read_once()) // 主线程从这一sockfd读取数据, 直到没有更多数据可读
+        if (conn_users[sockfd].read_once()) // 主线程从这一sockfd读取数据, 直到没有更多数据可读
         {
             // 日志部分设置了一些宏
-            LOG_INFO("deal with the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
-            m_pool->append_p(users + sockfd); // 将读取到的数据封装成一个请求对象并插入请求队列
+            LOG_INFO("deal with the client(%s)", inet_ntoa(conn_users[sockfd].get_address()->sin_addr));
+            m_pool->append_p(conn_users + sockfd); // 将读取到的数据封装成一个请求对象并插入请求队列
             if (timer)
             {
                 adjust_timer(timer);
@@ -400,18 +365,18 @@ void WebServer::dealwithwrite(int sockfd)
             adjust_timer(timer);
         }
 
-        m_pool->append(users + sockfd, 1);
+        m_pool->append(conn_users + sockfd, 1);
 
         while (true)
         {
-            if (1 == users[sockfd].improv)
+            if (1 == conn_users[sockfd].improv)
             {
-                if (1 == users[sockfd].timer_flag)
+                if (1 == conn_users[sockfd].timer_flag)
                 {
                     deal_timer(timer, sockfd);
-                    users[sockfd].timer_flag = 0;
+                    conn_users[sockfd].timer_flag = 0;
                 }
-                users[sockfd].improv = 0;
+                conn_users[sockfd].improv = 0;
                 break;
             }
         }
@@ -419,10 +384,10 @@ void WebServer::dealwithwrite(int sockfd)
     else
     {
         // proactor
-        if (users[sockfd].write())
+        // 在主线程中执行io
+        if (conn_users[sockfd].write())
         {
-            LOG_INFO("send data to the client(%s)", inet_ntoa(users[sockfd].get_address()->sin_addr));
-
+            LOG_INFO("send data to the client(%s)", inet_ntoa(conn_users[sockfd].get_address()->sin_addr));
             if (timer)
             {
                 adjust_timer(timer);

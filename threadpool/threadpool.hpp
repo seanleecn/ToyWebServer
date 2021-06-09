@@ -12,7 +12,7 @@
 #include <exception>
 #include <pthread.h>
 #include "../lock/locker.hpp"
-#include "../CGImysql/sql_connection_pool.h"
+#include "../connpool/sql_conn_pool.h"
 
 // 线程池类
 template <typename T>
@@ -141,18 +141,19 @@ void threadpool<T>::run()
         T *request = m_workqueue.front();
         m_workqueue.pop_front();
         m_queuelocker.unlock();
-        // 获取到了请求，处理请求
         if (!request)
             continue;
+        
         // Reactor
         if (1 == m_actor_model)
         {
-            // 判断执行读还是写
+            // 读IO事件
             if (0 == request->m_state)
             {
                 if (request->read_once())
                 {
                     request->improv = 1;
+                    // 从连接池中获得一个连接
                     connectionRAII mysqlcon(&request->mysql, m_connPool);
                     request->process();
                 }
@@ -162,6 +163,7 @@ void threadpool<T>::run()
                     request->timer_flag = 1;
                 }
             }
+            // 写IO事件
             else
             {
                 if (request->write())
@@ -175,12 +177,11 @@ void threadpool<T>::run()
                 }
             }
         }
-        // default:Proactor
+        // Proactor
         else
         {
             // 连接mysql
             connectionRAII mysqlcon(&request->mysql, m_connPool);
-            // process(模板类中的方法,这里是http类)进行处理
             request->process();
         }
     }

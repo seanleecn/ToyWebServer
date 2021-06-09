@@ -16,6 +16,7 @@
 #include "../http/http_conn.h"
 #include "../config/config.hpp"
 #include "../timer/timer.h"
+#include "../connpool/sql_conn_pool.h"
 
 const int MAX_FD = 65536;           //最大文件描述符
 const int MAX_EVENT_NUMBER = 10000; //最大事件数
@@ -27,12 +28,11 @@ public:
     WebServer();
     ~WebServer();
 
-    void init(string user, string passWord, string databaseName, Config config);
+    void init(string user, string passWord, string databaseName, string rootPath, Config config);
 
     void thread_pool();
     void sql_pool();
     void log_write() const;
-    // void trig_mode();
     void eventListen();
     void eventLoop();
     void timer(int connfd, struct sockaddr_in client_address);
@@ -54,7 +54,7 @@ public:
     int m_actormodel; // 并发模型,默认是proactor
     int m_pipefd[2];
     int m_epollfd;
-    http_conn *users; // 保存全部连接
+    http_conn *conn_users; // 保存全部连接
 
     //数据库相关
     connection_pool *m_connPool; // 数据库实例

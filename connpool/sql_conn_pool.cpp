@@ -1,8 +1,4 @@
-#include <mysql/mysql.h>
-#include <string>
-#include <cstdlib>
-#include <list>
-#include "sql_connection_pool.h"
+#include "sql_conn_pool.h"
 
 using namespace std;
 
@@ -19,7 +15,8 @@ connection_pool *connection_pool::GetInstance()
 }
 
 // 初始化
-void connection_pool::init_sql_pool(const string &url, const string &User, const string &PassWord, const string &DBName, int Port, int MaxConn, int close_log)
+void connection_pool::init_sql_pool(const string &url, const string &User, const string &PassWord,
+									const string &DBName, int Port, int MaxConn, int close_log)
 {
 	// 初始化数据库信息
 	m_url = url;

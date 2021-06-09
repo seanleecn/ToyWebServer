@@ -3,7 +3,7 @@ project(toy_web_server)
 
 set(SRC
         main.cpp
-        ./CGImysql/sql_connection_pool.cpp
+        ./connpool/sql_conn_pool.cpp
         ./http/http_conn.cpp
         ./log/log.cpp
         ./webserver/webserver.cpp

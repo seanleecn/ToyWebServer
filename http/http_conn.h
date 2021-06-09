@@ -20,9 +20,12 @@
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <map>
+#include <mysql/mysql.h>
+#include <fstream>
+#include <string>
 
 #include "../lock/locker.hpp"
-#include "../CGImysql/sql_connection_pool.h"
+#include "../connpool/sql_conn_pool.h"
 #include "../timer/timer.h"
 #include "../log/log.h"
 
@@ -90,19 +93,19 @@ public:
     http_conn() = default;
     ~http_conn() = default;
 
-    //初始化套接字，会调用私有函数void init()
+    // 初始化套接字，会调用私有函数void init()
     void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname);
 
-    //关闭HTTP连接
+    // 关闭HTTP连接
     void close_conn(bool real_close = true);
 
-    //http处理函数
+    // http处理函数
     void process();
 
-    //读取浏览器发送的数据
+    // 读取浏览器发送的数据
     bool read_once();
 
-    //给相应报文中写入数据
+    // 给相应报文中写入数据
     bool write();
 
     sockaddr_in *get_address()
@@ -168,7 +171,6 @@ public:
     static const int READ_BUFFER_SIZE = 2048;  // 读缓存大小
     static const int WRITE_BUFFER_SIZE = 1024; // 写缓存大小
 
-private:
     int m_sockfd;
     sockaddr_in m_address;
 
@@ -197,18 +199,20 @@ private:
     struct iovec m_iv[2];
     int m_iv_count;
 
-    int cgi;             // 是否启用的POST
-    char *m_string;      // 存储请求头数据
-    int bytes_to_send;   // 剩余发送字节数
-    int bytes_have_send; // 已发送字节数
+    int m_cgi;             // 是否启用的POST
+    char *m_string;        // 存储请求头数据
+    int m_bytes_to_send;   // 剩余发送字节数
+    int m_bytes_have_send; // 已发送字节数
     char *doc_root;
 
     int m_TRIGMode;
     int m_close_log;
 
-    char sql_user[100];
-    char sql_passwd[100];
-    char sql_name[100];
+    char m_sql_user[100];
+    char m_sql_passwd[100];
+    char m_sql_name[100];
+
+    locker m_lock;
 };
 
 #endif

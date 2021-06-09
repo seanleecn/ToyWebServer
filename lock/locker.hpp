@@ -1,12 +1,5 @@
 #ifndef LOCKER_HPP
 #define LOCKER_HPP
-/**
- * @file locker.h
- * @author lixiang (lix0419@outlook.com)
- * @brief 线程同步机制封装
- * @date 2021-05-23
- * 
- */
 
 #include <exception>
 #include <pthread.h>

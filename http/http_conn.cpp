@@ -1,8 +1,5 @@
 #include "http_conn.h"
 
-#include <mysql/mysql.h>
-#include <fstream>
-
 // 定义http响应的一些状态信息
 const char *ok_200_title = "OK";
 const char *error_400_title = "Bad Request";
@@ -14,9 +11,7 @@ const char *error_404_form = "The requested file was not found on this server.\n
 const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
-// TODO:下面这些全局变量应该是在webserver这个类里面吧
-locker m_lock;
-map<string, string> users; // map用来存储数据库里面已经有的用户密码
+map<string, string> m_users_map; // 数据库里面已经有的用户密码
 
 // 下面两个是static变量
 int http_conn::m_user_count = 0;
@@ -25,35 +20,36 @@ int http_conn::m_epollfd = -1;
 // 将数据库中的用户名和密码载入到服务器的map中来
 void http_conn::initmysql_result(connection_pool *connPool) const
 {
-    //先从连接池中取一个连接
+    // 先从连接池中取一个连接
     MYSQL *mysql = nullptr;
     connectionRAII mysqlcon(&mysql, connPool);
 
-    //在user表中检索username，passwd数据，浏览器端输入
+    // 在user表中检索username，passwd数据，浏览器端输入
     if (mysql_query(mysql, "SELECT username,passwd FROM user"))
     {
         LOG_ERROR("SELECT error:%s\n", mysql_error(mysql));
     }
 
-    //从表中检索完整的结果集
+    // 从表中检索完整的结果集
     MYSQL_RES *result = mysql_store_result(mysql);
 
-    //返回结果集中的列数
+    // 返回结果集中的列数
     int num_fields = mysql_num_fields(result);
 
-    //返回所有字段结构的数组
+    // 返回所有字段结构的数组
     MYSQL_FIELD *fields = mysql_fetch_fields(result);
-
-    //从结果集中获取下一行，将对应的用户名和密码，存入map中
+    
+    // 从结果集中获取下一行，将对应的用户名和密码，存入map中
     while (MYSQL_ROW row = mysql_fetch_row(result))
     {
-        string temp1(row[0]);
-        string temp2(row[1]);
-        users[temp1] = temp2;
+        string key(row[0]);
+        string val(row[1]);
+        m_users_map[key] = val;
     }
 }
 
 // 对文件描述符设置非阻塞
+// TODO:Utils里面也有同名函数
 int setnonblocking(int fd)
 {
     int old_option = fcntl(fd, F_GETFL);
@@ -64,6 +60,7 @@ int setnonblocking(int fd)
 
 // 内核事件表注册新事件，开启EPOLLONESHOT
 // 针对客户端连接的描述符，listenfd不用开启
+// TODO:Utils里面也有同名函数
 void addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
 {
     epoll_event event{};
@@ -123,14 +120,14 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
     addfd(m_epollfd, sockfd, true, m_TRIGMode);
     m_user_count++;
 
-    //当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
+    // 当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
     doc_root = root;
     m_TRIGMode = TRIGMode;
     m_close_log = close_log;
 
-    strcpy(sql_user, user.c_str());
-    strcpy(sql_passwd, passwd.c_str());
-    strcpy(sql_name, sqlname.c_str());
+    strcpy(m_sql_user, user.c_str());
+    strcpy(m_sql_passwd, passwd.c_str());
+    strcpy(m_sql_name, sqlname.c_str());
     // 私有函数
     init();
 }
@@ -140,8 +137,8 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
 void http_conn::init()
 {
     mysql = nullptr;
-    bytes_to_send = 0;
-    bytes_have_send = 0;
+    m_bytes_to_send = 0;
+    m_bytes_have_send = 0;
     m_check_state = CHECK_STATE_REQUESTLINE;
     m_linger = false;
     m_method = GET;
@@ -153,8 +150,8 @@ void http_conn::init()
     m_checked_idx = 0;
     m_read_idx = 0;
     m_write_idx = 0;
-    cgi = 0;
-    m_state = 0;
+    m_cgi = 0;
+    m_state = 0;// 默认读状态的请求
     timer_flag = 0;
     improv = 0;
 
@@ -276,10 +273,11 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     {
         m_method = GET;
     }
+    // POST请求要打开cgi
     else if (strcasecmp(method, "POST") == 0)
     {
         m_method = POST;
-        cgi = 1;
+        m_cgi = 1;
     }
     else
     {
@@ -333,7 +331,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
 // 解析http请求头
 http_conn::HTTP_CODE http_conn::parse_headers(char *text)
 {
-    //判断是空行还是请求头
+    // 判断是空行还是请求头
     if (text[0] == '\0')
     {
         // 判断是GET还是POST请求
@@ -476,7 +474,7 @@ http_conn::HTTP_CODE http_conn::do_request()
     // cgi打开
     // 2:登录校验
     // 3:注册校验
-    if (cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
+    if (m_cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
     {
         // 根据标志判断是登录检测还是注册检测
         char flag = m_url[1];
@@ -511,11 +509,11 @@ http_conn::HTTP_CODE http_conn::do_request()
             strcat(sql_insert, password);
             strcat(sql_insert, "')");
 
-            if (users.find(name) == users.end())
+            if (m_users_map.find(name) == m_users_map.end())
             {
                 m_lock.lock();
                 int res = mysql_query(mysql, sql_insert);
-                users.insert(pair<string, string>(name, password));
+                m_users_map.insert(pair<string, string>(name, password));
                 m_lock.unlock();
 
                 if (!res)
@@ -524,13 +522,15 @@ http_conn::HTTP_CODE http_conn::do_request()
                     strcpy(m_url, "/registerError.html");
             }
             else
+            {
                 strcpy(m_url, "/registerError.html");
+            }
         }
         // 登录
         else if (*(p + 1) == '2')
         {
             // 如果在能找到这个用户和密码
-            if (users.find(name) != users.end() && users[name] == password)
+            if (m_users_map.find(name) != m_users_map.end() && m_users_map[name] == password)
                 strcpy(m_url, "/welcome.html");
             else
                 strcpy(m_url, "/logError.html");
@@ -625,8 +625,8 @@ void http_conn::unmap()
 // 服务器主线程检测写事件，调用write函数将响应报文发送给浏览器端
 bool http_conn::write()
 {
-    int temp = 0;
-    if (bytes_to_send == 0)
+    // 没有待发送的数据
+    if (m_bytes_to_send == 0)
     {
         modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
         init();
@@ -635,12 +635,12 @@ bool http_conn::write()
     // 保证一次性发完
     while (1)
     {
-        // 调用分散写writev函数把状态行、消息头、空行和响应正文写到TCP socket的发送缓冲区
+        // 调用分散写writev函数把状态行、消息头、空行和响应正文写到socket的发送缓冲区
         // m_iv数组保存了报文和mmap映射到内存中的文件的地址
         // 返回正常发送字节数
-        temp = writev(m_sockfd, m_iv, m_iv_count);
-        // 处理错误
-        if (temp < 0)
+        int writev_ret = 0;
+        writev_ret = writev(m_sockfd, m_iv, m_iv_count);
+        if (writev_ret < 0)
         {
             // 判断缓冲区是否满了
             if (errno == EAGAIN)
@@ -654,26 +654,27 @@ bool http_conn::write()
             return false;
         }
 
-        bytes_have_send += temp; // 更新已发送字节
-        bytes_to_send -= temp;   // 更新未发送字节
+        m_bytes_have_send += writev_ret; // 更新已发送字节
+        m_bytes_to_send -= writev_ret;   // 更新未发送字节
 
-        // 第一个iovec头部信息的数据已发送完，发送第二个iovec数据
-        if (bytes_have_send >= m_iv[0].iov_len)
+        // 第一个iovec(头部)的数据已发送完，发送第二个iovec数据
+        if (m_bytes_have_send >= m_iv[0].iov_len)
         {
-            // 不再继续发送头部信息
             m_iv[0].iov_len = 0;
-            m_iv[1].iov_base = m_file_address + (bytes_have_send - m_write_idx);
-            m_iv[1].iov_len = bytes_to_send;
+            m_iv[1].iov_base = m_file_address + (m_bytes_have_send - m_write_idx);
+            m_iv[1].iov_len = m_bytes_to_send;
         }
+
         // 继续发送第一个iovec头部信息的数据
         else
         {
-            m_iv[0].iov_base = m_write_buf + bytes_have_send;
-            m_iv[0].iov_len = m_iv[0].iov_len - bytes_have_send;
+            m_iv[0].iov_base = m_write_buf + m_bytes_have_send;
+            // TODO:这里减去已发送的值可能越界
+            m_iv[0].iov_len = m_iv[0].iov_len - m_bytes_have_send;
         }
 
         // 判断条件，数据已全部发送完
-        if (bytes_to_send <= 0)
+        if (m_bytes_to_send <= 0)
         {
             unmap();
             modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
@@ -693,7 +694,7 @@ bool http_conn::write()
     }
 }
 
-/******************************** 往缓冲区m_write_buf里写响应报文 ********************************/
+/*start ******************************* 往缓冲区m_write_buf里写响应报文 ********************************/
 
 // add...系列函数的公共函数
 bool http_conn::add_response(const char *format, ...)
@@ -817,7 +818,7 @@ bool http_conn::process_write(HTTP_CODE ret)
             m_iv[1].iov_len = m_file_stat.st_size;
             m_iv_count = 2;
             // 待发送的全部数据为响应报文头部信息和文件大小
-            bytes_to_send = m_write_idx + m_file_stat.st_size;
+            m_bytes_to_send = m_write_idx + m_file_stat.st_size;
             return true;
         }
         // 如果请求的资源大小为0，则返回空白html文件
@@ -836,18 +837,19 @@ bool http_conn::process_write(HTTP_CODE ret)
     m_iv[0].iov_base = m_write_buf;
     m_iv[0].iov_len = m_write_idx;
     m_iv_count = 1;
-    bytes_to_send = m_write_idx;
+    m_bytes_to_send = m_write_idx;
     return true;
 }
 
-/******************************** 往缓冲区m_write_buf里写响应报文 ********************************/
+/*end ******************************* 往缓冲区m_write_buf里写响应报文 ********************************/
 
-// 处理http报文请求与报文响应
+// 线程池处理队列中的任务，处理http报文请求与报文响应
 void http_conn::process()
 {
     // 报文解析
     HTTP_CODE read_ret = process_read();
-    //NO_REQUEST，表示请求不完整，需要继续接收请求数据
+
+    // 请求不完整，需要继续接收请求数据
     if (read_ret == NO_REQUEST)
     {
         // 注册并监听读事件
@@ -861,6 +863,6 @@ void http_conn::process()
     {
         close_conn();
     }
-    //注册并监听写事件
+    // 注册并监听写事件
     modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
 }
