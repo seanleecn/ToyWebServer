@@ -90,8 +90,8 @@ public:
     };
 
 public:
-    http_conn() = default;
-    ~http_conn() = default;
+    http_conn() {};
+    ~http_conn() {};
 
     // 初始化套接字，会调用私有函数void init()
     void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname);
@@ -113,8 +113,7 @@ public:
         return &m_address;
     }
 
-    // 初始化数据库读取线程
-    void initmysql_result(connection_pool *connPool) const;
+    void initmysql_result(connection_pool *connPool);
 
     // 时间事件类型
     int timer_flag;
@@ -213,6 +212,8 @@ public:
     char m_sql_name[100];
 
     locker m_lock;
+    // TODO:下面编译不通过报错了,得写在cpp文件中
+    // Utils m_utils2;
 };
 
 #endif

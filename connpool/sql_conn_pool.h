@@ -13,8 +13,6 @@
 #include "../lock/locker.hpp"
 #include "../log/log.h"
 
-using namespace std;
-
 // 单例模式 这个是利用局部静态变量懒汉模式实现单例
 // C++11之后局部静态变量线程安全
 class connection_pool

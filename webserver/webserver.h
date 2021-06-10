@@ -13,14 +13,14 @@
 #include <sys/epoll.h>
 
 #include "../threadpool/threadpool.hpp"
+#include "../connpool/sql_conn_pool.h"
 #include "../http/http_conn.h"
 #include "../config/config.hpp"
 #include "../timer/timer.h"
-#include "../connpool/sql_conn_pool.h"
 
-const int MAX_FD = 65536;           //最大文件描述符
-const int MAX_EVENT_NUMBER = 10000; //最大事件数
-const int TIMESLOT = 5;             //最小超时单位
+const int MAX_FD = 65536;           // 最大文件描述符
+const int MAX_EVENT_NUMBER = 10000; // 最大事件数
+const int TIMESLOT = 5;             // 最小超时单位
 
 class WebServer
 {
@@ -54,7 +54,7 @@ public:
     int m_actormodel; // 并发模型,默认是proactor
     int m_pipefd[2];
     int m_epollfd;
-    http_conn *conn_users; // 保存全部连接
+    http_conn *m_conn_users; // 保存全部连接
 
     //数据库相关
     connection_pool *m_connPool; // 数据库实例
@@ -67,8 +67,8 @@ public:
     threadpool<http_conn> *m_pool; // 线程池实例
     int m_thread_num;              // 线程池内的线程数量,默认8
 
-    //epoll_event相关
-    epoll_event events[MAX_EVENT_NUMBER];
+    // epoll_event相关
+    epoll_event m_events[MAX_EVENT_NUMBER];
 
     int m_listenfd;
     int m_OPT_LINGER; // 优雅关闭链接，默认不使用
@@ -78,8 +78,8 @@ public:
     int m_LISTENTrigmode; // listenfd触发模式，默认LT
     int m_CONNTrigmode;   // connfd触发模式，默认LT
 
-    //定时器相关
-    client_data *users_timer; // 定时器
-    Utils utils;              // 定时器信号处理函数
+    client_data *m_users_timer; // 保存全部定时器
+
+    Utils m_utils;// 工具类
 };
 #endif

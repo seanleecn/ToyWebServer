@@ -19,6 +19,7 @@ int main(int argc, char *argv[])
     server.init(user, passwd, databasename, rootPath, config);
 
     // 单例模式获取一个日志的实例
+    // TODO:待看
     server.log_write();
 
     // 初始化数据库连接池

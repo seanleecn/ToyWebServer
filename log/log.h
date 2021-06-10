@@ -8,8 +8,6 @@
 #include <pthread.h>
 #include "block_queue.hpp"
 
-using namespace std;
-
 // 单例模式
 class Log
 {

@@ -4,10 +4,10 @@
 WebServer::WebServer()
 {
     // 保存全部的客户端信息
-    conn_users = new http_conn[MAX_FD];
+    m_conn_users = new http_conn[MAX_FD];
 
     // 保存全部定时器
-    users_timer = new client_data[MAX_FD];
+    m_users_timer = new client_data[MAX_FD];
 }
 
 // 服务器资源释放
@@ -17,8 +17,8 @@ WebServer::~WebServer()
     close(m_listenfd);
     close(m_pipefd[1]);
     close(m_pipefd[0]);
-    delete[] conn_users;
-    delete[] users_timer;
+    delete[] m_conn_users;
+    delete[] m_users_timer;
     delete m_pool;
 }
 
@@ -82,7 +82,7 @@ void WebServer::sql_pool()
     m_connPool = connection_pool::GetInstance();
     m_connPool->init_sql_pool("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
     // 将数据库中的用户名和密码载入到服务器的map中来
-    conn_users->initmysql_result(m_connPool);
+    m_conn_users->initmysql_result(m_connPool);
 }
 
 // 创建线程池
@@ -133,7 +133,7 @@ void WebServer::eventListen()
     assert(ret >= 0);
 
     // 初始化定时器的时间片
-    utils.init(TIMESLOT);
+    m_utils.init(TIMESLOT);
 
     // 配置epoll
     epoll_event events[MAX_EVENT_NUMBER]; // e存储epoll就绪事件
@@ -141,8 +141,12 @@ void WebServer::eventListen()
     assert(m_epollfd != -1);
 
     // 设置listenfd为不开启oneshot以及触发模式
-    utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
-    http_conn::m_epollfd = m_epollfd; // http_conn中的epollfd是一个static全局变量
+    // 调用了epoll_ctl
+    // TODO:为什么这里用utils中的函数就可以，但是在http_conn中声明utils再调用addfd失败
+    m_utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
+
+    // http_conn中的epollfd是一个static全局变量
+    http_conn::m_epollfd = m_epollfd;
 
     // 创建管道，管道写端[1]写入信号值，管道读端[0]通过I/O复用系统监测读事件
     // socketpair相当于两端可读可写的pipe
@@ -150,14 +154,15 @@ void WebServer::eventListen()
     assert(ret != -1);
 
     // 管道写端非阻塞
-    utils.setnonblocking(m_pipefd[1]);
+    m_utils.setnonblocking(m_pipefd[1]);
+
     // 管道读端为ET+非阻塞并用epoll监听
-    utils.addfd(m_epollfd, m_pipefd[0], false, 0);
+    m_utils.addfd(m_epollfd, m_pipefd[0], false, 0);
 
     // 设置信号处理函数SIGALRM（时间到了触发）和SIGTERM（kill会触发，Ctrl+C）
-    utils.addsig(SIGPIPE, SIG_IGN);
-    utils.addsig(SIGALRM, Utils::sig_handler, false);
-    utils.addsig(SIGTERM, Utils::sig_handler, false);
+    m_utils.addsig(SIGPIPE, SIG_IGN);
+    m_utils.addsig(SIGALRM, Utils::sig_handler, false);
+    m_utils.addsig(SIGTERM, Utils::sig_handler, false);
 
     // 每隔TIMESLOT(5s)触发SIGALRM信号
     alarm(TIMESLOT);
@@ -173,20 +178,20 @@ void WebServer::eventListen()
 void WebServer::timer(int connfd, struct sockaddr_in client_address)
 {
     // 将connfd注册到内核事件表
-    conn_users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
+    m_conn_users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
 
     //创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
-    users_timer[connfd].address = client_address;
-    users_timer[connfd].sockfd = connfd;
+    m_users_timer[connfd].address = client_address;
+    m_users_timer[connfd].sockfd = connfd;
     auto *timer = new timer_node;
-    timer->user_data = &users_timer[connfd];
+    timer->user_data = &m_users_timer[connfd];
     timer->cb_func = cb_func;
     time_t cur = time(nullptr);
 
     //TIMESLOT:最小时间间隔单位为5s
     timer->expire = cur + 3 * TIMESLOT;
-    users_timer[connfd].timer = timer;
-    utils.m_timer_lst.add_timer(timer);
+    m_users_timer[connfd].timer = timer;
+    m_utils.m_timer_lst.add_timer(timer);
 }
 
 // 若有数据传输，则将定时器往后延迟3个单位
@@ -195,7 +200,7 @@ void WebServer::adjust_timer(timer_node *timer)
 {
     time_t cur = time(nullptr);
     timer->expire = cur + 3 * TIMESLOT;
-    utils.m_timer_lst.adjust_timer(timer);
+    m_utils.m_timer_lst.adjust_timer(timer);
 
     LOG_INFO("%s", "adjust timer once");
 }
@@ -203,12 +208,12 @@ void WebServer::adjust_timer(timer_node *timer)
 // 关闭定时器
 void WebServer::deal_timer(timer_node *timer, int sockfd)
 {
-    timer->cb_func(&users_timer[sockfd]);
+    timer->cb_func(&m_users_timer[sockfd]);
     if (timer)
     {
-        utils.m_timer_lst.del_timer(timer);
+        m_utils.m_timer_lst.del_timer(timer);
     }
-    LOG_INFO("close fd %d", users_timer[sockfd].sockfd);
+    LOG_INFO("close fd %d", m_users_timer[sockfd].sockfd);
 }
 /************************** 定时器相关的函数 **************************/
 
@@ -230,7 +235,7 @@ bool WebServer::dealclinetdata()
         }
         if (http_conn::m_user_count >= MAX_FD)
         {
-            utils.show_error(connfd, "Internal server busy");
+            m_utils.show_error(connfd, "Internal server busy");
             LOG_ERROR("%s", "Internal server busy");
             return false;
         }
@@ -251,7 +256,7 @@ bool WebServer::dealclinetdata()
             }
             if (http_conn::m_user_count >= MAX_FD)
             {
-                utils.show_error(connfd, "Internal server busy");
+                m_utils.show_error(connfd, "Internal server busy");
                 LOG_ERROR("%s", "Internal server busy");
                 break;
             }
@@ -306,7 +311,7 @@ bool WebServer::dealwithsignal(bool &timeout, bool &stop_server)
 void WebServer::dealwithread(int sockfd)
 {
     // 取出当前socket对应的定时器
-    timer_node *timer = users_timer[sockfd].timer;
+    timer_node *timer = m_users_timer[sockfd].timer;
 
     // reactor
     if (1 == m_actormodel)
@@ -317,18 +322,18 @@ void WebServer::dealwithread(int sockfd)
             adjust_timer(timer); // 将定时器往后延迟15s
         }
         // 若监测到读事件，将该事件放入请求队列
-        m_pool->append(conn_users + sockfd, 0);
+        m_pool->append(m_conn_users + sockfd, 0);
         while (true)
         {
             // TODO:这个没懂
-            if (1 == conn_users[sockfd].improv)
+            if (1 == m_conn_users[sockfd].improv)
             {
-                if (1 == conn_users[sockfd].timer_flag)
+                if (1 == m_conn_users[sockfd].timer_flag)
                 {
                     deal_timer(timer, sockfd);
-                    conn_users[sockfd].timer_flag = 0;
+                    m_conn_users[sockfd].timer_flag = 0;
                 }
-                conn_users[sockfd].improv = 0;
+                m_conn_users[sockfd].improv = 0;
                 break;
             }
         }
@@ -336,11 +341,11 @@ void WebServer::dealwithread(int sockfd)
     // proactor
     else
     {
-        if (conn_users[sockfd].read_once()) // 主线程从这一sockfd读取数据, 直到没有更多数据可读
+        if (m_conn_users[sockfd].read_once()) // 主线程从这一sockfd读取数据, 直到没有更多数据可读
         {
             // 日志部分设置了一些宏
-            LOG_INFO("deal with the client(%s)", inet_ntoa(conn_users[sockfd].get_address()->sin_addr));
-            m_pool->append_p(conn_users + sockfd); // 将读取到的数据封装成一个请求对象并插入请求队列
+            LOG_INFO("deal with the client(%s)", inet_ntoa(m_conn_users[sockfd].get_address()->sin_addr));
+            m_pool->append_p(m_conn_users + sockfd); // 将读取到的数据封装成一个请求对象并插入请求队列
             if (timer)
             {
                 adjust_timer(timer);
@@ -356,7 +361,7 @@ void WebServer::dealwithread(int sockfd)
 // 7.4 写操作
 void WebServer::dealwithwrite(int sockfd)
 {
-    timer_node *timer = users_timer[sockfd].timer;
+    timer_node *timer = m_users_timer[sockfd].timer;
     // reactor
     if (1 == m_actormodel)
     {
@@ -365,18 +370,18 @@ void WebServer::dealwithwrite(int sockfd)
             adjust_timer(timer);
         }
 
-        m_pool->append(conn_users + sockfd, 1);
+        m_pool->append(m_conn_users + sockfd, 1);
 
         while (true)
         {
-            if (1 == conn_users[sockfd].improv)
+            if (1 == m_conn_users[sockfd].improv)
             {
-                if (1 == conn_users[sockfd].timer_flag)
+                if (1 == m_conn_users[sockfd].timer_flag)
                 {
                     deal_timer(timer, sockfd);
-                    conn_users[sockfd].timer_flag = 0;
+                    m_conn_users[sockfd].timer_flag = 0;
                 }
-                conn_users[sockfd].improv = 0;
+                m_conn_users[sockfd].improv = 0;
                 break;
             }
         }
@@ -385,9 +390,9 @@ void WebServer::dealwithwrite(int sockfd)
     {
         // proactor
         // 在主线程中执行io
-        if (conn_users[sockfd].write())
+        if (m_conn_users[sockfd].write())
         {
-            LOG_INFO("send data to the client(%s)", inet_ntoa(conn_users[sockfd].get_address()->sin_addr));
+            LOG_INFO("send data to the client(%s)", inet_ntoa(m_conn_users[sockfd].get_address()->sin_addr));
             if (timer)
             {
                 adjust_timer(timer);
@@ -409,7 +414,7 @@ void WebServer::eventLoop()
     while (!stop_server)
     {
         // 等待所监控文件描述符上有事件的产生
-        int number = epoll_wait(m_epollfd, events, MAX_EVENT_NUMBER, -1);
+        int number = epoll_wait(m_epollfd, m_events, MAX_EVENT_NUMBER, -1);
         if (number < 0 && errno != EINTR)
         {
             LOG_ERROR("%s", "epoll failure");
@@ -419,7 +424,7 @@ void WebServer::eventLoop()
         // 遍历epoll返回的就绪事件数组 处理就绪的事件
         for (int i = 0; i < number; i++)
         {
-            int sockfd = events[i].data.fd; // 事件表中就绪的socket文件描述符
+            int sockfd = m_events[i].data.fd; // 事件表中就绪的socket文件描述符
             // 7.1 处理用户连接
             if (sockfd == m_listenfd)
             {
@@ -428,27 +433,27 @@ void WebServer::eventLoop()
                     continue;
             }
             // 处理异常事件
-            else if (events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
+            else if (m_events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
                 // 服务器端关闭连接
-                timer_node *timer = users_timer[sockfd].timer;
+                timer_node *timer = m_users_timer[sockfd].timer;
                 // 移除对应的定时器
                 deal_timer(timer, sockfd);
             }
             // 7.2处理定时器信号
-            else if ((sockfd == m_pipefd[0]) && (events[i].events & EPOLLIN))
+            else if ((sockfd == m_pipefd[0]) && (m_events[i].events & EPOLLIN))
             {
                 bool flag = dealwithsignal(timeout, stop_server);
                 if (!flag)
                     LOG_ERROR("%s", "dealclientdata failure");
             }
             // 7.3 读操作
-            else if (events[i].events & EPOLLIN)
+            else if (m_events[i].events & EPOLLIN)
             {
                 dealwithread(sockfd);
             }
             // 7.4 写操作
-            else if (events[i].events & EPOLLOUT)
+            else if (m_events[i].events & EPOLLOUT)
             {
                 dealwithwrite(sockfd);
             }
@@ -456,7 +461,7 @@ void WebServer::eventLoop()
         // 处理定时器为非必须事件，收到信号并不是立马处理，完成读写事件后，再进行处理
         if (timeout)
         {
-            utils.timer_handler();
+            m_utils.timer_handler();
             LOG_INFO("%s", "timer tick");
             timeout = false;
         }

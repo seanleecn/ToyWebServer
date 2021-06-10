@@ -12,13 +12,14 @@ const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
 map<string, string> m_users_map; // 数据库里面已经有的用户密码
+Utils m_utils;
 
 // 下面两个是static变量
 int http_conn::m_user_count = 0;
 int http_conn::m_epollfd = -1;
 
 // 将数据库中的用户名和密码载入到服务器的map中来
-void http_conn::initmysql_result(connection_pool *connPool) const
+void http_conn::initmysql_result(connection_pool *connPool)
 {
     // 先从连接池中取一个连接
     MYSQL *mysql = nullptr;
@@ -50,53 +51,53 @@ void http_conn::initmysql_result(connection_pool *connPool) const
 
 // 对文件描述符设置非阻塞
 // TODO:Utils里面也有同名函数
-int setnonblocking(int fd)
-{
-    int old_option = fcntl(fd, F_GETFL);
-    int new_option = old_option | O_NONBLOCK;
-    fcntl(fd, F_SETFL, new_option);
-    return old_option;
-}
+// int setnonblocking(int fd)
+// {
+//     int old_option = fcntl(fd, F_GETFL);
+//     int new_option = old_option | O_NONBLOCK;
+//     fcntl(fd, F_SETFL, new_option);
+//     return old_option;
+// }
 
 // 内核事件表注册新事件，开启EPOLLONESHOT
 // 针对客户端连接的描述符，listenfd不用开启
 // TODO:Utils里面也有同名函数
-void addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
-{
-    epoll_event event{};
-    event.data.fd = fd;
+// void addfd(int epollfd, int fd, bool one_shot, int TRIGMode)
+// {
+//     epoll_event event{};
+//     event.data.fd = fd;
 
-    if (1 == TRIGMode)
-        event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
-    else
-        event.events = EPOLLIN | EPOLLRDHUP;
+//     if (1 == TRIGMode)
+//         event.events = EPOLLIN | EPOLLET | EPOLLRDHUP;
+//     else
+//         event.events = EPOLLIN | EPOLLRDHUP;
 
-    if (one_shot)
-        event.events |= EPOLLONESHOT;
-    epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
-    setnonblocking(fd);
-}
+//     if (one_shot)
+//         event.events |= EPOLLONESHOT;
+//     epoll_ctl(epollfd, EPOLL_CTL_ADD, fd, &event);
+//     setnonblocking(fd);
+// }
 
 // 从内核时间表删除描述符
-void removefd(int epollfd, int fd)
-{
-    epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
-    close(fd);
-}
+// void removefd(int epollfd, int fd)
+// {
+//     epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, 0);
+//     close(fd);
+// }
 
 // 将事件重置为EPOLLONESHOT
-void modfd(int epollfd, int fd, int ev, int TRIGMode)
-{
-    epoll_event event{};
-    event.data.fd = fd;
+// void modfd(int epollfd, int fd, int ev, int TRIGMode)
+// {
+//     epoll_event event{};
+//     event.data.fd = fd;
 
-    if (1 == TRIGMode)
-        event.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
-    else
-        event.events = ev | EPOLLONESHOT | EPOLLRDHUP;
+//     if (1 == TRIGMode)
+//         event.events = ev | EPOLLET | EPOLLONESHOT | EPOLLRDHUP;
+//     else
+//         event.events = ev | EPOLLONESHOT | EPOLLRDHUP;
 
-    epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
-}
+//     epoll_ctl(epollfd, EPOLL_CTL_MOD, fd, &event);
+// }
 
 // 关闭连接，关闭一个连接，客户总量减一
 void http_conn::close_conn(bool real_close)
@@ -104,7 +105,7 @@ void http_conn::close_conn(bool real_close)
     if (real_close && (m_sockfd != -1))
     {
         printf("close %d\n", m_sockfd);
-        removefd(m_epollfd, m_sockfd);
+        m_utils.removefd(m_epollfd, m_sockfd);
         m_sockfd = -1;
         m_user_count--;
     }
@@ -116,8 +117,8 @@ void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMo
 {
     m_sockfd = sockfd;
     m_address = addr;
-    //
-    addfd(m_epollfd, sockfd, true, m_TRIGMode);
+    
+    m_utils.addfd(m_epollfd, sockfd, true, m_TRIGMode);
     m_user_count++;
 
     // 当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
@@ -628,7 +629,7 @@ bool http_conn::write()
     // 没有待发送的数据
     if (m_bytes_to_send == 0)
     {
-        modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+        m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
         init();
         return true;
     }
@@ -639,6 +640,7 @@ bool http_conn::write()
         // m_iv数组保存了报文和mmap映射到内存中的文件的地址
         // 返回正常发送字节数
         int writev_ret = 0;
+        // TODO:这里多次调用writev没问题吗
         writev_ret = writev(m_sockfd, m_iv, m_iv_count);
         if (writev_ret < 0)
         {
@@ -677,7 +679,7 @@ bool http_conn::write()
         if (m_bytes_to_send <= 0)
         {
             unmap();
-            modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+            m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
 
             // 浏览器的请求为长连接
             if (m_linger)
@@ -853,7 +855,7 @@ void http_conn::process()
     if (read_ret == NO_REQUEST)
     {
         // 注册并监听读事件
-        modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+        m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
         return;
     }
 
@@ -864,5 +866,5 @@ void http_conn::process()
         close_conn();
     }
     // 注册并监听写事件
-    modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+    m_utils.modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
 }
