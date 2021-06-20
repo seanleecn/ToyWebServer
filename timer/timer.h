@@ -86,8 +86,8 @@ private:
 class Utils
 {
 public:
-    Utils() {};
-    ~Utils() {};
+    Utils(){};
+    ~Utils(){};
 
     void init(int timeslot);
 
@@ -96,13 +96,13 @@ public:
 
     // 将内核事件表注册读事件，ET模式，选择开启EPOLLONESHOT
     void addfd(int epollfd, int fd, bool one_shot, int TRIGMode);
-    
+
     // 从内核时间表删除描述符
     void removefd(int epollfd, int fd);
-    
+
     // 将事件重置为EPOLLONESHOT
     void modfd(int epollfd, int fd, int ev, int TRIGMode);
-    
+
     // 信号处理函数
     static void sig_handler(int sig);
 
@@ -118,7 +118,7 @@ public:
     static int *u_pipefd;
     static int u_epollfd;
     timer_list m_timer_lst;
-    int m_TIMESLOT;
+    int m_TIMESLOT; // 定时器的时间片
 };
 
 // 定时器回调函数

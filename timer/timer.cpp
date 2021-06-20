@@ -258,6 +258,7 @@ void Utils::timer_handler()
     alarm(m_TIMESLOT);
 }
 
+// 向连接客户发送错误报告
 void Utils::show_error(int connfd, const char *info)
 {
     send(connfd, info, strlen(info), 0);

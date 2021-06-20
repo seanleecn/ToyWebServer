@@ -5,7 +5,7 @@ int main(int argc, char *argv[])
     string user = "root";             // mysql账号
     string passwd = "0419";           // mysql密码
     string databasename = "webserDb"; // 数据库名
-    string rootPath = "../root";      // 资源目录
+    string rootPath = "../web";       // 资源目录
 
     // 命令行解析
     Config config;

@@ -35,13 +35,13 @@ public:
     void log_write() const;
     void eventListen();
     void eventLoop();
-    void timer(int connfd, struct sockaddr_in client_address);
+    void init_timer(int connfd, struct sockaddr_in client_address);
     void adjust_timer(timer_node *timer);
     void deal_timer(timer_node *timer, int sockfd);
-    bool dealclinetdata();
-    bool dealwithsignal(bool &timeout, bool &stop_server);
-    void dealwithread(int sockfd);
-    void dealwithwrite(int sockfd);
+    bool deal_client_data();
+    bool deal_signal(bool &timeout, bool &stop_server);
+    void deal_read(int sockfd);
+    void deal_write(int sockfd);
 
 public:
     int m_port;   // 端口号,默认9006
@@ -80,6 +80,6 @@ public:
 
     client_data *m_users_timer; // 保存全部定时器
 
-    Utils m_utils;// 工具类
+    Utils m_utils; // 工具类
 };
 #endif

@@ -90,8 +90,8 @@ public:
     };
 
 public:
-    http_conn() {};
-    ~http_conn() {};
+    http_conn(){};
+    ~http_conn(){};
 
     // 初始化套接字，会调用私有函数void init()
     void init(int sockfd, const sockaddr_in &addr, char *, int, int, string user, string passwd, string sqlname);
@@ -102,7 +102,7 @@ public:
     // http处理函数
     void process();
 
-    // 读取浏览器发送的数据
+    // 一次性读取浏览器发送的数据
     bool read_once();
 
     // 给相应报文中写入数据
@@ -114,10 +114,6 @@ public:
     }
 
     void initmysql_result(connection_pool *connPool);
-
-    // 时间事件类型
-    int timer_flag;
-    int improv;
 
 private:
     // 由public的init调用，对私有成员进程初始化
@@ -138,11 +134,11 @@ private:
     // 主状态机解析报文中的请求内容
     HTTP_CODE parse_content(char *text);
 
-    // 生成响应报文
+    // 根据解析的请求，将不同的相应页面准备好
     HTTP_CODE do_request();
 
-    // m_start_line是已经解析的字符
-    // get_line用于将指针向后偏移，指向未处理的字符
+    // m_start_line是从状态机已经解析的字符
+    // 拿到从状态机已经解析好的一行
     char *get_line() { return m_read_buf + m_start_line; };
 
     // 从状态机读取一行，分析是请求报文的哪一部分
@@ -161,11 +157,13 @@ private:
     bool add_blank_line();
 
 public:
+    // 时间事件类型
+    int timer_flag;
+    int improv;
     static int m_epollfd;
     static int m_user_count;
-    MYSQL *mysql;
-    int m_state; // IO事件类别:读为0, 写为1
-
+    MYSQL *m_mysql;
+    int m_io_state;                            // IO事件类别:读为0, 写为1
     static const int FILENAME_LEN = 200;       // 读取文件长度上限
     static const int READ_BUFFER_SIZE = 2048;  // 读缓存大小
     static const int WRITE_BUFFER_SIZE = 1024; // 写缓存大小
@@ -173,16 +171,18 @@ public:
     int m_sockfd;
     sockaddr_in m_address;
 
-    char m_read_buf[READ_BUFFER_SIZE];   // 存储读取的请求报文数据
-    int m_read_idx;                      // m_read_buf中数据的最后一个字节的下一个位置
-    int m_checked_idx;                   // m_read_buf读取的位置
-    int m_start_line;                    // m_read_buf中已经解析的字符个数
+    char m_read_buf[READ_BUFFER_SIZE]; // 存储读取的请求报文数据
+    int m_read_idx;                    // m_read_buf中数据的最后一个字节的下一个位置
+
+    int m_checked_idx; // m_read_buf读取的位置
+    int m_start_line;  // m_read_buf中已经解析的字符个数
+
     char m_write_buf[WRITE_BUFFER_SIZE]; // 存储发出的响应报文数据
     int m_write_idx;                     // 指示buffer中的长度
-    CHECK_STATE m_check_state;           // 主状态机的状态
-    METHOD m_method;                     // 请求方法
 
-    // 解析请求报文中对应的6个变量
+    CHECK_STATE m_check_state; // 主状态机的状态
+    METHOD m_method;           // 请求方法
+
     char m_real_file[FILENAME_LEN];
     char *m_url;
     char *m_version;
@@ -199,10 +199,10 @@ public:
     int m_iv_count;
 
     int m_cgi;             // 是否启用的POST
-    char *m_string;        // 存储请求头数据
+    char *m_content;       // 存储POST的请求数据
     int m_bytes_to_send;   // 剩余发送字节数
     int m_bytes_have_send; // 已发送字节数
-    char *doc_root;
+    char *m_doc_root;      // 资源目录
 
     int m_TRIGMode;
     int m_close_log;
@@ -213,6 +213,7 @@ public:
 
     locker m_lock;
     // TODO:下面编译不通过报错了,得写在cpp文件中
+    // 好像是因为Utils所在的timer.h中也include本文件，互相引用了
     // Utils m_utils2;
 };
 

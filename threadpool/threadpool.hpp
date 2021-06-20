@@ -19,7 +19,7 @@ template <typename T>
 class threadpool
 {
 public:
-    threadpool(int actor_model, connection_pool *connPool, int thread_number = 8, int max_request = 10000);
+    threadpool(int actor_model, connection_pool *connPool, int thread_number = 8, int max_requests = 10000);
     ~threadpool();
     bool append(T *request, int state);
     bool append_p(T *request);
@@ -40,7 +40,12 @@ private:
 };
 
 template <typename T>
-threadpool<T>::threadpool(int actor_model, connection_pool *connPool, int thread_number, int max_requests) : m_actor_model(actor_model), m_thread_number(thread_number), m_max_requests(max_requests), m_threads(NULL), m_connPool(connPool)
+threadpool<T>::threadpool(int actor_model, connection_pool *connPool,
+                          int thread_number, int max_requests) : m_actor_model(actor_model),
+                                                                 m_thread_number(thread_number),
+                                                                 m_max_requests(max_requests),
+                                                                 m_threads(NULL),
+                                                                 m_connPool(connPool)
 {
     // 输入检查
     if (thread_number <= 0 || max_requests <= 0)
@@ -85,9 +90,8 @@ bool threadpool<T>::append(T *request, int state)
         m_queuelocker.unlock();
         return false;
     }
-    // 和proactor模式不同的在于要标记IO事件类别
-    // reactor模式下的读写由子线程执行
-    request->m_state = state;
+
+    request->m_io_state = state; // reactor模式要标记IO事件类别，0为读
     m_workqueue.push_back(request);
     m_queuelocker.unlock();
     m_queuestat.post();
@@ -125,11 +129,9 @@ void *threadpool<T>::worker(void *arg)
 template <typename T>
 void threadpool<T>::run()
 {
-    // TODO:死循环是否应该改为flag判断
     while (true)
     {
-        // 由于这部分代码是在死循环中，为了避免发生队列没有元素也加锁的情况发生
-        // 先等待信号量，当有资源的时候，操作请求队列(要加锁)
+        // 线程建立之后，就等待信号量，当有连接进来之后，这些线程就会竞争处理连接
         m_queuestat.wait();
         m_queuelocker.lock();
         if (m_workqueue.empty())
@@ -143,20 +145,23 @@ void threadpool<T>::run()
         m_queuelocker.unlock();
         if (!request)
             continue;
-        
-        // Reactor
+
+        // Reactor模式子线程负责处理IO
+        // 读事件先读取http::read_once()把数据读到缓存,再解析读进来的数据http::process();
+        // 写事件调用http::write()发送数据
         if (1 == m_actor_model)
         {
-            // 读IO事件
-            if (0 == request->m_state)
+            // 读IO事件,也就是读取IO请求
+            if (0 == request->m_io_state)
             {
                 if (request->read_once())
                 {
                     request->improv = 1;
                     // 从连接池中获得一个连接
-                    connectionRAII mysqlcon(&request->mysql, m_connPool);
+                    connectionRAII mysqlcon(&request->m_mysql, m_connPool);
                     request->process();
                 }
+                // TODO:这是干啥的
                 else
                 {
                     request->improv = 1;
@@ -177,11 +182,12 @@ void threadpool<T>::run()
                 }
             }
         }
-        // Proactor
+        // Proactor模式，主线程已经做好了IO
+        // 因此这里只需要解析请求
         else
         {
             // 连接mysql
-            connectionRAII mysqlcon(&request->mysql, m_connPool);
+            connectionRAII mysqlcon(&request->m_mysql, m_connPool);
             request->process();
         }
     }
