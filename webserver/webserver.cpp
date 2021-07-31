@@ -4,10 +4,10 @@
 WebServer::WebServer()
 {
     // 保存全部的客户端信息
-    m_conn_users = new http_conn[MAX_FD];
+    m_http_conns = new http_conn[MAX_FD];
 
     // 保存全部定时器
-    m_users_timer = new client_data[MAX_FD];
+    m_client_datas = new client_data[MAX_FD];
 }
 
 // 服务器资源释放
@@ -17,79 +17,80 @@ WebServer::~WebServer()
     close(m_listenfd);
     close(m_pipefd[1]);
     close(m_pipefd[0]);
-    delete[] m_conn_users;
-    delete[] m_users_timer;
-    delete m_pool;
+    delete[] m_http_conns;
+    delete[] m_client_datas;
+    delete m_thread_pool;
 }
 
 // 初始化用户名、数据库等信息
-void WebServer::init(string user, string passWord, string databaseName, string rootPath, Config config)
+void WebServer::init(const string &user, const string &passWord, const string &DBName, const string &rootPath, const Config &config)
 {
-    m_user = user;
-    m_passWord = passWord;
-    m_databaseName = databaseName;
+    m_DB_user = user;
+    m_DB_password = passWord;
+    m_DB_name = DBName;
     m_root = (char *)rootPath.c_str();
 
     m_port = config.m_port;
-    m_sql_num = config.m_sqlNum;
-    m_thread_num = config.m_threadNum;
-    m_log_write = config.m_logWrite;
-    m_OPT_LINGER = config.m_linger;
-    m_close_log = config.m_closeLog;
-    m_actormodel = config.m_actorMode;
+    m_sql_num = config.m_sql_num;
+    m_thread_num = config.m_thread_num;
+    m_log_mode = config.m_log_mode;
+    m_linger = config.m_linger;
+    m_close_log = config.m_close_log;
+    m_actormodel = config.m_actor_mode;
 
     // 配置触发模式
-    m_TRIGMode = config.m_triggerMode;
-    if (0 == m_TRIGMode) // LT + LT
+    m_trigger_mode = config.m_trigger_mode;
+    if (0 == m_trigger_mode) // LT + LT
     {
-        m_LISTENTrigmode = 0;
-        m_CONNTrigmode = 0;
+        m_listen_trigger_mode = 0;
+        m_conn_trigger_mode = 0;
     }
-    else if (1 == m_TRIGMode) // LT + ET
+    else if (1 == m_trigger_mode) // LT + ET
     {
-        m_LISTENTrigmode = 0;
-        m_CONNTrigmode = 1;
+        m_listen_trigger_mode = 0;
+        m_conn_trigger_mode = 1;
     }
-    else if (2 == m_TRIGMode) // ET + LT
+    else if (2 == m_trigger_mode) // ET + LT
     {
-        m_LISTENTrigmode = 1;
-        m_CONNTrigmode = 0;
+        m_listen_trigger_mode = 1;
+        m_conn_trigger_mode = 0;
     }
-    else if (3 == m_TRIGMode) // ET + ET
+    else if (3 == m_trigger_mode) // ET + ET
     {
-        m_LISTENTrigmode = 1;
-        m_CONNTrigmode = 1;
+        m_listen_trigger_mode = 1;
+        m_conn_trigger_mode = 1;
     }
 }
 
 // 单例模式获取一个日志的实例
-void WebServer::log_write() const
+void WebServer::log_write()
 {
     if (0 == m_close_log)
     {
         // 异步日志
-        if (1 == m_log_write)
-            Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 800);
+        if (1 == m_log_mode)
+            Log::get_instance()->init("./ServerLog", 2000, 800000, 800);
         // 同步日志
         else
-            Log::get_instance()->init("./ServerLog", m_close_log, 2000, 800000, 0);
+            Log::get_instance()->init("./ServerLog", 2000, 800000, 0);
     }
 }
 
 // 单例模式初始化数据库连接池
 void WebServer::sql_pool()
 {
-    m_connPool = connection_pool::GetInstance();
-    m_connPool->init_sql_pool("localhost", m_user, m_passWord, m_databaseName, 3306, m_sql_num, m_close_log);
+    m_sql_pool = connection_pool::GetInstance();
+    // 初始化连接池
+    m_sql_pool->init_sql_pool("localhost", m_DB_user, m_DB_password, m_DB_name, 3306, m_sql_num, m_close_log);
     // 将数据库中的用户名和密码载入到服务器的map中来
-    m_conn_users->initmysql_result(m_connPool);
+    m_http_conns->init_mysql_result(m_sql_pool);
 }
 
 // 创建线程池
 void WebServer::thread_pool()
 {
     // 线程池,线程池的任务是http_conn
-    m_pool = new threadpool<http_conn>(m_actormodel, m_connPool, m_thread_num);
+    m_thread_pool = new threadpool<http_conn>(m_actormodel, m_sql_pool, m_thread_num);
 }
 
 // 设置监听socket，epoll和定时器
@@ -102,14 +103,14 @@ void WebServer::eventListen()
     // 优雅关闭连接
     // 游双5.11.4 linger结构体第一个参数控制开关,第二个参数控制时间
     // close函数采用默认行为(四次挥手)来关闭socket
-    if (0 == m_OPT_LINGER)
+    if (0 == m_linger)
     {
         struct linger tmp = {0, 1};
         setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));
     }
     // 非阻塞的socket:调用close立即返回
     // 阻塞的socket:  等待指定的时间后，直到残留数据发送完成且收到确认；否则close返回-1且errno为EWOUDLDBLOCK
-    else if (1 == m_OPT_LINGER)
+    else if (1 == m_linger)
     {
         struct linger tmp = {1, 1};
         setsockopt(m_listenfd, SOL_SOCKET, SO_LINGER, &tmp, sizeof(tmp));
@@ -142,7 +143,7 @@ void WebServer::eventListen()
 
     // 设置listenfd为不开启oneshot以及触发模式
     // 调用了epoll_ctl
-    m_utils.addfd(m_epollfd, m_listenfd, false, m_LISTENTrigmode);
+    m_utils.addfd(m_epollfd, m_listenfd, false, m_listen_trigger_mode);
 
     // http_conn中的epollfd是一个static全局变量
     http_conn::m_epollfd = m_epollfd;
@@ -177,19 +178,19 @@ void WebServer::eventListen()
 void WebServer::init_timer(int connfd, struct sockaddr_in client_address)
 {
     // 将connfd注册到内核事件表
-    m_conn_users[connfd].init(connfd, client_address, m_root, m_CONNTrigmode, m_close_log, m_user, m_passWord, m_databaseName);
+    m_http_conns[connfd].init(connfd, client_address, m_root, m_conn_trigger_mode, m_close_log, m_DB_user, m_DB_password, m_DB_name);
 
     // 创建定时器，设置回调函数和超时时间，绑定用户数据，将定时器添加到链表中
-    m_users_timer[connfd].address = client_address;
-    m_users_timer[connfd].sockfd = connfd;
+    m_client_datas[connfd].clinet_address = client_address;
+    m_client_datas[connfd].client_sockfd = connfd;
     auto *timer = new timer_node;
-    timer->user_data = &m_users_timer[connfd];
+    timer->user_data = &m_client_datas[connfd];
     timer->cb_func = cb_func;
     time_t cur = time(nullptr);
 
     // TIMESLOT:最小时间间隔单位为5s
     timer->expire = cur + 3 * TIMESLOT; // 15s定时
-    m_users_timer[connfd].timer = timer;
+    m_client_datas[connfd].client_timer = timer;
     m_utils.m_timer_lst.add_timer(timer);
 }
 
@@ -201,33 +202,33 @@ void WebServer::adjust_timer(timer_node *timer)
     timer->expire = cur + 3 * TIMESLOT;
     m_utils.m_timer_lst.adjust_timer(timer);
 
-    LOG_INFO("%s", "adjust timer once");
+    LOG_INFO("%s", "adjust client_timer once");
 }
 
 // 关闭定时器
 void WebServer::deal_timer(timer_node *timer, int sockfd)
 {
-    timer->cb_func(&m_users_timer[sockfd]);
+    timer->cb_func(&m_client_datas[sockfd]);
     if (timer)
     {
         m_utils.m_timer_lst.del_timer(timer);
     }
-    LOG_INFO("close fd %d", m_users_timer[sockfd].sockfd);
+    LOG_INFO("close fd %d", m_client_datas[sockfd].client_sockfd);
 }
 /************************** 定时器相关的函数 **************************/
 
-// 7.1 处理用户连接
+// 处理用户连接
 // 执行了accept得到一个connfd
 // 分配了定时器
-bool WebServer::deal_client_data()
+bool WebServer::deal_client()
 {
-    struct sockaddr_in client_address;
-    socklen_t client_addrlength = sizeof(client_address);
+    struct sockaddr_in client_address {};
+    socklen_t client_addr_length = sizeof(client_address);
 
     // 监听socket为LT模式(默认)，不需要一次就处理
-    if (0 == m_LISTENTrigmode)
+    if (0 == m_listen_trigger_mode)
     {
-        int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
+        int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addr_length);
         if (connfd < 0)
         {
             LOG_ERROR("%s:errno is:%d", "accept error", errno);
@@ -241,14 +242,14 @@ bool WebServer::deal_client_data()
         }
         init_timer(connfd, client_address);
     }
-    // 监听socker为ET模式，需要一次性处理数据(死循环)
+    // 监听socket为ET模式，需要一次性处理数据(死循环)
     else
     {
         // TODO:这个while循环有什么意义，break之后就return false
         while (true)
         {
             // accept返回了一个新的connfd用于send()和recv()
-            int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addrlength);
+            int connfd = accept(m_listenfd, (struct sockaddr *)&client_address, &client_addr_length);
             if (connfd < 0)
             {
                 LOG_ERROR("%s:errno is:%d", "accept error", errno);
@@ -267,7 +268,7 @@ bool WebServer::deal_client_data()
     return true;
 }
 
-// 7.2 处理定时器信号
+// 处理定时器信号
 bool WebServer::deal_signal(bool &timeout, bool &stop_server)
 {
     int ret = 0;
@@ -311,7 +312,7 @@ bool WebServer::deal_signal(bool &timeout, bool &stop_server)
 void WebServer::deal_read(int sockfd)
 {
     // 取出当前socket对应的定时器
-    timer_node *timer = m_users_timer[sockfd].timer;
+    timer_node *timer = m_client_datas[sockfd].client_timer;
 
     // reactor
     // 只负责把请求放到队列中去
@@ -324,39 +325,38 @@ void WebServer::deal_read(int sockfd)
         }
 
         // 监测到读事件，将该事件放入请求队列，标记为读事件0
-        m_pool->append(m_conn_users + sockfd, 0);
+        m_thread_pool->append(m_http_conns + sockfd, 0);
 
-        // TODO:这个while循环是在干嘛
+        // TODO:这个while循环把timer_flag和improv改为0
         while (true)
         {
-            if (1 == m_conn_users[sockfd].improv)
+            if (1 == m_http_conns[sockfd].improv)
             {
-                if (1 == m_conn_users[sockfd].timer_flag)
+                if (1 == m_http_conns[sockfd].timer_flag)
                 {
                     deal_timer(timer, sockfd);
-                    m_conn_users[sockfd].timer_flag = 0;
+                    m_http_conns[sockfd].timer_flag = 0;
                 }
-                m_conn_users[sockfd].improv = 0;
+                m_http_conns[sockfd].improv = 0;
                 break;
             }
         }
     }
-    // proactor(默认)
-    // 主线程循环读取客户数据
+    // proactor(默认)，主线程循环读取客户数据
     else
     {
         // 主线程从这一sockfd读取数据, 直到没有更多数据可读
-        if (m_conn_users[sockfd].read_once())
+        if (m_http_conns[sockfd].read_once())
         {
-            LOG_INFO("deal with the client(%s)", inet_ntoa(m_conn_users[sockfd].get_address()->sin_addr));
+            LOG_INFO("deal with the client(%s)", inet_ntoa(m_http_conns[sockfd].get_address()->sin_addr));
             // 将读取到的数据封装成一个请求对象并插入请求队列
-            m_pool->append_p(m_conn_users + sockfd);
+            m_thread_pool->append_p(m_http_conns + sockfd);
             if (timer)
             {
                 adjust_timer(timer);
             }
         }
-        // 一次性没有读完
+        // TODO:一次性没有读完就把连接关了
         else
         {
             deal_timer(timer, sockfd);
@@ -367,7 +367,7 @@ void WebServer::deal_read(int sockfd)
 // 7.4 写操作
 void WebServer::deal_write(int sockfd)
 {
-    timer_node *timer = m_users_timer[sockfd].timer;
+    timer_node *timer = m_client_datas[sockfd].client_timer;
     // reactor模式
     // 让子线程写数据
     if (1 == m_actormodel)
@@ -377,30 +377,30 @@ void WebServer::deal_write(int sockfd)
             adjust_timer(timer);
         }
         // 添加到线程池中，标记事件为写1
-        m_pool->append(m_conn_users + sockfd, 1);
+        m_thread_pool->append(m_http_conns + sockfd, 1);
 
         // TODO:同没搞懂这些定时器的操作在干嘛
         while (true)
         {
-            if (1 == m_conn_users[sockfd].improv)
+            if (1 == m_http_conns[sockfd].improv)
             {
-                if (1 == m_conn_users[sockfd].timer_flag)
+                if (1 == m_http_conns[sockfd].timer_flag)
                 {
                     deal_timer(timer, sockfd);
-                    m_conn_users[sockfd].timer_flag = 0;
+                    m_http_conns[sockfd].timer_flag = 0;
                 }
-                m_conn_users[sockfd].improv = 0;
+                m_http_conns[sockfd].improv = 0;
                 break;
             }
         }
     }
     // proactor
-    // 在主线程中执行write
     else
     {
-        if (m_conn_users[sockfd].write())
+        // 在主线程中执行write
+        if (m_http_conns[sockfd].write())
         {
-            LOG_INFO("send data to the client(%s)", inet_ntoa(m_conn_users[sockfd].get_address()->sin_addr));
+            LOG_INFO("send data to the client(%s)", inet_ntoa(m_http_conns[sockfd].get_address()->sin_addr));
             if (timer)
             {
                 adjust_timer(timer);
@@ -416,7 +416,7 @@ void WebServer::deal_write(int sockfd)
 // 事件回环(即服务器主线程)
 void WebServer::eventLoop()
 {
-    bool timeout = false;
+    bool timeout_flag = false;
     bool stop_server = false;
 
     while (!stop_server)
@@ -433,45 +433,39 @@ void WebServer::eventLoop()
         for (int i = 0; i < number; i++)
         {
             int sockfd = m_events[i].data.fd; // 事件表中就绪的socket文件描述符
-            // 7.1 处理用户连接
+            // 处理用户连接
             if (sockfd == m_listenfd)
             {
-                bool flag = deal_client_data();
-                if (!flag)
-                    continue;
+                deal_client();
             }
-            // 处理异常事件
+            // 处理定时和异常事件
             else if (m_events[i].events & (EPOLLRDHUP | EPOLLHUP | EPOLLERR))
             {
-                timer_node *timer = m_users_timer[sockfd].timer;
-                // 移除对应的定时器
+                timer_node *timer = m_client_datas[sockfd].client_timer;
                 deal_timer(timer, sockfd);
             }
-            // 7.2处理定时器信号
-            // 判断条件为此时有数据进来，且是在管道[0]的数据
+            // 处理定时器信号 有数据进来，且是在管道[0]的数据
             else if ((sockfd == m_pipefd[0]) && (m_events[i].events & EPOLLIN))
             {
-                bool flag = deal_signal(timeout, stop_server);
-                if (!flag)
-                    LOG_ERROR("%s", "dealclientdata failure");
+                deal_signal(timeout_flag, stop_server);
             }
-            // 7.3 读操作
+            // 处理读操作
             else if (m_events[i].events & EPOLLIN)
             {
                 deal_read(sockfd);
             }
-            // 7.4 写操作
+            // 处理写操作
             else if (m_events[i].events & EPOLLOUT)
             {
                 deal_write(sockfd);
             }
         }
         // 处理定时器为非必须事件，收到信号并不是立马处理，完成读写事件后，再进行处理
-        if (timeout)
+        if (timeout_flag)
         {
             m_utils.timer_handler();
-            LOG_INFO("%s", "timer tick");
-            timeout = false;
+            LOG_INFO("%s", "client_timer tick");
+            timeout_flag = false;
         }
     }
 }

@@ -18,10 +18,10 @@ Linux下基于C++的**玩具级**服务器，参考了下面两个项目。
 ```
 ./ToyWebServer
 ├── config          参数配置解析
-├── connpool        数据库连接池(TODO)
+├── connpool        数据库连接池
 ├── http            HTTP连接处理 
 ├── lock            封装互斥锁和信号量
-├── log             日志系统(TODO)
+├── log             日志系统
 ├── threadpool      线程池
 ├── timer           定时器
 ├── root            网页数据
@@ -85,7 +85,7 @@ Linux下基于C++的**玩具级**服务器，参考了下面两个项目。
     
     // 添加用户数据(也可以不添加，仅测试)
     INSERT INTO user(username, passwd) VALUES('lx', '123');
-
+    
     // 查看当前全部用户密码
     use webserDb;
     show tables;
@@ -114,6 +114,7 @@ Linux下基于C++的**玩具级**服务器，参考了下面两个项目。
     ```bash
     ./toy_web_server #如果使用root登录mysql,要用sudo运行
     ```
+    
 * 自定义启动
   
     ```bash
@@ -163,3 +164,12 @@ Linux下基于C++的**玩具级**服务器，参考了下面两个项目。
     ```
     TODO
     插图
+
+## Mysql连接
+
+```
+mysql_query 发一个mysql命令
+mysql_store_result 拿到输出的结果
+mysql_fetch_row 按行读取结果
+```
+

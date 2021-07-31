@@ -4,8 +4,8 @@ int main(int argc, char *argv[])
 {
     string user = "root";             // mysql账号
     string passwd = "0419";           // mysql密码
-    string databasename = "webserDb"; // 数据库名
-    string rootPath = "../web";       // 资源目录
+    string database_name = "webserDb"; // 数据库名
+    string web_path = "../web";       // 资源目录
 
     // 命令行解析
     Config config;
@@ -16,10 +16,9 @@ int main(int argc, char *argv[])
     WebServer server;
 
     // 把解析的参数赋值给服务器
-    server.init(user, passwd, databasename, rootPath, config);
+    server.init(user, passwd, database_name, web_path, config);
 
     // 单例模式获取一个日志的实例
-    // TODO:待看
     server.log_write();
 
     // 初始化数据库连接池

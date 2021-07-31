@@ -12,33 +12,33 @@ const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
 map<string, string> m_users_map; // 数据库里面已经有的用户密码
-Utils m_utils;
+Utils m_utils; // 工具类
 
 // 下面两个是static变量
 int http_conn::m_user_count = 0;
 int http_conn::m_epollfd = -1;
 
 // 将数据库中的用户名和密码载入到服务器的map中来
-void http_conn::initmysql_result(connection_pool *connPool)
+void http_conn::init_mysql_result(connection_pool *connPool)
 {
     // 先从连接池中取一个连接
-    MYSQL *m_mysql = nullptr;
-    connectionRAII mysqlcon(&m_mysql, connPool);
+    MYSQL *conn = nullptr;
+    connectionRAII mysql_conn(&conn, connPool);
 
     // 在user表中检索username，passwd数据，浏览器端输入
-    if (mysql_query(m_mysql, "SELECT username,passwd FROM user"))
+    if (mysql_query(conn, "SELECT username,passwd FROM user"))
     {
-        LOG_ERROR("SELECT error:%s\n", mysql_error(m_mysql));
+        LOG_ERROR("SELECT error:%s\n", mysql_error(conn));
     }
 
     // 从表中检索完整的结果集
-    MYSQL_RES *result = mysql_store_result(m_mysql);
+    MYSQL_RES *result = mysql_store_result(conn);
 
     // 返回结果集中的列数
-    int num_fields = mysql_num_fields(result);
+    // int num_fields = mysql_num_fields(result);
 
     // 返回所有字段结构的数组
-    MYSQL_FIELD *fields = mysql_fetch_fields(result);
+    // MYSQL_FIELD *fields = mysql_fetch_fields(result);
 
     // 从结果集中获取下一行，将对应的用户名和密码，存入map中
     while (MYSQL_ROW row = mysql_fetch_row(result))
@@ -65,32 +65,32 @@ void http_conn::close_conn(bool real_close)
  * @brief 初始化http连接
  * 
  * @param sockfd 分配的客户fd 
- * @param addr 客户地址
+ * @param address 客户地址
  * @param root 根目录地址
- * @param TRIGMode 客户fd的触发模式
+ * @param trigger_mode 客户fd的触发模式
  * @param close_log 是否关闭日志
  * @param user 数据库用户名
  * @param passwd 数据库密码
- * @param sqlname 数据库名字
+ * @param sql_name 数据库名字
  */
-void http_conn::init(int sockfd, const sockaddr_in &addr, char *root, int TRIGMode,
-                     int close_log, string user, string passwd, string sqlname)
+void http_conn::init(int sockfd, const sockaddr_in &address, char *root, int trigger_mode, int close_log,
+                     const string &user, const string &passwd, const string &sql_name)
 {
     m_sockfd = sockfd;
-    m_address = addr;
+    m_address = address;
 
-    m_utils.addfd(m_epollfd, sockfd, true, m_TRIGMode);
+    m_utils.addfd(m_epollfd, sockfd, true, m_trigger_mode);
     m_user_count++;
 
     // 当浏览器出现连接重置时，可能是网站根目录出错或http响应格式出错或者访问的文件中内容完全为空
     m_doc_root = root;
-    m_TRIGMode = TRIGMode;
+    m_trigger_mode = trigger_mode;
     m_close_log = close_log;
 
     strcpy(m_sql_user, user.c_str());
     strcpy(m_sql_passwd, passwd.c_str());
-    strcpy(m_sql_name, sqlname.c_str());
-    // 私有函数
+    strcpy(m_sql_name, sql_name.c_str());
+    // 私有函数初始化变量
     init();
 }
 
@@ -171,7 +171,7 @@ bool http_conn::read_once()
     int bytes_read = 0; // 本次读取的字节数
 
     // connfd是LT模式
-    if (0 == m_TRIGMode)
+    if (0 == m_trigger_mode)
     {
         bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
         m_read_idx += bytes_read;
@@ -188,21 +188,18 @@ bool http_conn::read_once()
     {
         while (true)
         {
-            // 参数:
-            //     -读取的fd
-            //     -缓冲区的位置
-            //     -缓冲区大小
-            //     -flag
+            // 参数 -读取的fd -缓冲区的位置 -缓冲区大小 -flag
             bytes_read = recv(m_sockfd, m_read_buf + m_read_idx, READ_BUFFER_SIZE - m_read_idx, 0);
-            // 错误:-1
+            // 返回-1：有错误
             if (bytes_read == -1)
             {
-                //非阻塞ET模式下，需要一次性将数据读完
+                // 非阻塞ET模式下，需要一次性将数据读完
+                // EAGAIN表示读完了，可以跳出循环
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
                     break;
                 return false;
             }
-            // 已经断开连接:0
+            // 返回0：已经断开连接
             else if (bytes_read == 0)
             {
                 return false;
@@ -242,7 +239,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     else if (strcasecmp(method, "POST") == 0)
     {
         m_method = POST;
-        m_cgi = 1;
+        m_cgi = 1; // 這個很关键
     }
     else
     {
@@ -597,13 +594,13 @@ bool http_conn::write()
     // 没有待发送的数据
     if (m_bytes_to_send == 0)
     {
-        m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+        m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_trigger_mode);
         init();
         return true;
     }
     // 保证一次性发完
     // TODO:为啥这里没有区别ET或者LT模式
-    while (1)
+    while (true)
     {
         // 调用分散写writev函数把状态行、消息头、空行和响应正文写到socket的发送缓冲区
         // m_iv数组保存了报文和mmap映射到内存中的文件的地址
@@ -614,10 +611,10 @@ bool http_conn::write()
         if (writev_ret < 0)
         {
             // 判断缓冲区是否满了
-            if (errno == EAGAIN)
+            if (errno == EAGAIN || errno==EWOULDBLOCK)
             {
                 // 重新注册写事件
-                (m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+                m_utils.modfd(m_epollfd, m_sockfd, EPOLLOUT, m_trigger_mode);
                 return true;
             }
             // 不是缓冲区得问题,取消内存映射
@@ -648,19 +645,17 @@ bool http_conn::write()
         if (m_bytes_to_send <= 0)
         {
             unmap();
-            m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+            // 重置oneshot，重新监听可读事件
+            m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_trigger_mode);
 
             // 浏览器的请求为长连接
             if (m_linger)
             {
-                // 重新初始化HTTP对象
                 init();
                 return true;
             }
             else
-            {
                 return false;
-            }
         }
     }
 }
@@ -824,7 +819,7 @@ void http_conn::process()
     if (read_ret == NO_REQUEST)
     {
         // 注册并监听读事件
-        m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_TRIGMode);
+        m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_trigger_mode);
         return;
     }
 
@@ -835,5 +830,5 @@ void http_conn::process()
         close_conn();
     }
     // 注册并监听写事件
-    m_utils.modfd(m_epollfd, m_sockfd, EPOLLOUT, m_TRIGMode);
+    m_utils.modfd(m_epollfd, m_sockfd, EPOLLOUT, m_trigger_mode);
 }

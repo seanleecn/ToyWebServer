@@ -32,9 +32,9 @@ class timer_node;
 // 客户端数据
 struct client_data
 {
-    sockaddr_in address; // 客户端socket地址
-    int sockfd;          // socket文件描述符
-    timer_node *timer;   // 定时器
+    sockaddr_in clinet_address; // 客户端socket地址
+    int client_sockfd;          // socket文件描述符
+    timer_node *client_timer;   // 定时器
 };
 
 // 将连接资源、定时事件和超时时间封装为类，并以双向链表的形式组织起来

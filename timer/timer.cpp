@@ -67,7 +67,7 @@ void timer_list::adjust_timer(timer_node *timer)
     }
 }
 
-//删除定时器:即是双向链表节点的删除
+// 删除定时器:即是双向链表节点的删除
 void timer_list::del_timer(timer_node *timer)
 {
     if (!timer)
@@ -275,10 +275,10 @@ class Utils;
 void cb_func(client_data *user_data)
 {
     // 删除非活动连接在socket上的注册事件
-    epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->sockfd, nullptr);
+    epoll_ctl(Utils::u_epollfd, EPOLL_CTL_DEL, user_data->client_sockfd, nullptr);
     assert(user_data);
     // 删除非活动连接在socket上的注册事件
-    close(user_data->sockfd);
+    close(user_data->client_sockfd);
     // 减少连接数
     http_conn::m_user_count--;
 }
