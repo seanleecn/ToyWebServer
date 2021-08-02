@@ -90,8 +90,8 @@ public:
     };
 
 public:
-    http_conn() {};
-    ~http_conn() {};
+    http_conn(){};
+    ~http_conn(){};
 
     // 初始化套接字，会调用私有函数void init()
     void init(int sockfd, const sockaddr_in &address, char *root, int trigger_mode, int close_log,
@@ -154,6 +154,7 @@ private:
     /*********************/
 
     void unmap();
+
 public:
     // 全局静态变量
     static int m_epollfd;
@@ -214,9 +215,6 @@ public:
     char m_sql_name[100];
 
     locker m_http_lock;
-    // TODO:下面编译不通过报错了,得写在cpp文件中
-    // 好像是因为Utils所在的timer.h中也include本文件，互相引用了
-    // Utils m_utils2;
 };
 
 #endif

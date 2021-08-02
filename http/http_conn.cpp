@@ -12,7 +12,7 @@ const char *error_500_title = "Internal Error";
 const char *error_500_form = "There was an unusual problem serving the request file.\n";
 
 map<string, string> m_users_map; // 数据库里面已经有的用户密码
-Utils m_utils; // 工具类
+Utils m_utils;                   // 工具类
 
 // 下面两个是static变量
 int http_conn::m_user_count = 0;
@@ -283,7 +283,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     if (!m_url || m_url[0] != '/')
         return BAD_REQUEST;
 
-    // 当url为/时，显示判断是登录还是注册的界面
+    // 输入localhost:9006的时候，url是/，就进入judge.html页面
     if (strlen(m_url) == 1)
         strcat(m_url, "judge.html");
 
@@ -372,12 +372,12 @@ http_conn::HTTP_CODE http_conn::process_read()
     // 从状态机解析(按行读取缓冲区数据并分析)
     // GET请求报文中，每一行都是\r\n作为结束
     // 仅用从状态机的状态((line_status = parse_line()) == LINE_OK)判断即可
-     while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) ||
+    while ((m_check_state == CHECK_STATE_CONTENT && line_status == LINE_OK) ||
            ((line_status = parse_line()) == LINE_OK))
-           // POST请求报文中，消息体的末尾没有任何字符
-           // 使用 主状态机 的状态 m_check_state == CHECK_STATE_CONTENT
-           // 解析完消息体后，报文的完整解析就完成了，但此时主状态机的状态还是CHECK_STATE_CONTENT，还会再次进入循环
-           // 增加了 && line_status == LINE_OK，并在完成消息体解析后，将line_status变量更改为LINE_OPEN，此时可以跳出循环
+    // POST请求报文中，消息体的末尾没有任何字符
+    // 使用 主状态机 的状态 m_check_state == CHECK_STATE_CONTENT
+    // 解析完消息体后，报文的完整解析就完成了，但此时主状态机的状态还是CHECK_STATE_CONTENT，还会再次进入循环
+    // 增加了 && line_status == LINE_OK，并在完成消息体解析后，将line_status变量更改为LINE_OPEN，此时可以跳出循环
     {
         text = get_line();
 
@@ -616,7 +616,7 @@ bool http_conn::write()
         if (writev_ret < 0)
         {
             // 判断缓冲区是否满了
-            if (errno == EAGAIN || errno==EWOULDBLOCK)
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
             {
                 // 重新注册写事件
                 m_utils.modfd(m_epollfd, m_sockfd, EPOLLOUT, m_trigger_mode);
