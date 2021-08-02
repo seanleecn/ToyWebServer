@@ -161,7 +161,7 @@ http_conn::LINE_STATUS http_conn::parse_line()
 }
 
 // 读取客户数据
-bool http_conn::read_once()
+bool http_conn::read()
 {
     if (m_read_idx >= READ_BUFFER_SIZE)
     {
@@ -592,8 +592,8 @@ void http_conn::unmap()
     }
 }
 
-// 服务器子线程调用process_write完成响应报文，随后注册epollout事件(可写)
-// 服务器主线程检测写事件，调用write函数将响应报文发送给浏览器端
+// process_write把待发送的数据添加到自定义的HTTP缓冲区，随后注册epollout事件(可写)
+// 服务器主线程检测写事件，该函数把HTTP缓冲区的相应信息和请求文件聚集写到socket的缓冲区
 bool http_conn::write()
 {
     // 没有待发送的数据
@@ -612,7 +612,7 @@ bool http_conn::write()
         // 返回正常发送字节数
         int writev_ret = 0;
         // TODO:这里多次调用writev没问题吗
-        writev_ret = writev(m_sockfd, m_iv, m_iv_count);
+        writev_ret = writev(m_sockfd, m_iovec, m_iovec_cnt);
         if (writev_ret < 0)
         {
             // 判断缓冲区是否满了
@@ -630,20 +630,20 @@ bool http_conn::write()
         m_bytes_have_send += writev_ret; // 更新已发送字节
         m_bytes_to_send -= writev_ret;   // 更新未发送字节
 
-        // 第一个iovec(头部)的数据已发送完，发送第二个iovec数据
-        if (m_bytes_have_send >= m_iv[0].iov_len)
+        //头部)的数据已发送完，发送第二个iovec数据
+        if (m_bytes_have_send >= m_iovec[0].iov_len)
         {
-            m_iv[0].iov_len = 0;
-            m_iv[1].iov_base = m_file_address + (m_bytes_have_send - m_write_idx);
-            m_iv[1].iov_len = m_bytes_to_send;
+            m_iovec[0].iov_len = 0;
+            m_iovec[1].iov_base = m_file_address + (m_bytes_have_send - m_write_idx);
+            m_iovec[1].iov_len = m_bytes_to_send;
         }
 
         // 继续发送第一个iovec头部信息的数据
         else
         {
-            m_iv[0].iov_base = m_write_buf + m_bytes_have_send;
-            // TODO:这里减去已发送的值可能越界
-            m_iv[0].iov_len = m_iv[0].iov_len - m_bytes_have_send;
+            m_iovec[0].iov_base = m_write_buf + m_bytes_have_send;
+            // TODO:这里减去已发送的值可能越界,m_bytes_have_send是累加值，应该是减去writev_ret吧
+            m_iovec[0].iov_len = m_iovec[0].iov_len - m_bytes_have_send;
         }
 
         // 判断条件，数据已全部发送完
@@ -777,18 +777,21 @@ bool http_conn::process_write(HTTP_CODE ret)
     // 文件请求,获取文件成功
     case FILE_REQUEST:
     {
+        // 添加状态行
         add_status_line(200, ok_200_title);
         // 如果请求的资源存在
         if (m_file_stat.st_size != 0)
         {
+            // 添加应答头
             add_headers(m_file_stat.st_size);
+            // 使用多重写
             // 第一个iovec指针指向m_write_buf写缓冲区
-            m_iv[0].iov_base = m_write_buf;
-            m_iv[0].iov_len = m_write_idx;
+            m_iovec[0].iov_base = m_write_buf;
+            m_iovec[0].iov_len = m_write_idx;
             // 第二个iovec指针指向共享内存mmap返回的m_file_address
-            m_iv[1].iov_base = m_file_address;
-            m_iv[1].iov_len = m_file_stat.st_size;
-            m_iv_count = 2;
+            m_iovec[1].iov_base = m_file_address;
+            m_iovec[1].iov_len = m_file_stat.st_size;
+            m_iovec_cnt = 2;
             // 待发送的全部数据为响应报文头部信息和文件大小
             m_bytes_to_send = m_write_idx + m_file_stat.st_size;
             return true;
@@ -807,9 +810,9 @@ bool http_conn::process_write(HTTP_CODE ret)
     }
 
     // 除FILE_REQUEST状态外，其余状态只申请一个iovec，指向响应报文缓冲区
-    m_iv[0].iov_base = m_write_buf;
-    m_iv[0].iov_len = m_write_idx;
-    m_iv_count = 1;
+    m_iovec[0].iov_base = m_write_buf;
+    m_iovec[0].iov_len = m_write_idx;
+    m_iovec_cnt = 1;
     m_bytes_to_send = m_write_idx;
     return true;
 }
@@ -828,12 +831,12 @@ void http_conn::process()
         return;
     }
 
-    // 根据解析的报文状态，生成相应的报文响应
+    // 根据解析的报文状态，把需要发送的响应报文和文件添加到这个connfd的http的缓冲区，注意这缓冲区和socket的缓冲区不是一个东西
     bool write_ret = process_write(read_ret);
     if (!write_ret)
     {
         close_conn();
     }
-    // 注册并监听写事件
+    // 注册并监听写事件，之后就会被epoll检测
     m_utils.modfd(m_epollfd, m_sockfd, EPOLLOUT, m_trigger_mode);
 }

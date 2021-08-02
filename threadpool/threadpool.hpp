@@ -144,14 +144,14 @@ template <typename T>
             continue;
 
         // Reactor模式子线程负责处理IO
-        // 读事件先读取http::read_once()把数据读到缓存,再解析读进来的数据http::process();
+        // 读事件先读取http::read()把数据读到缓存,再解析读进来的数据http::process();
         // 写事件调用http::write()发送数据
         if (1 == m_actor_model)
         {
             // Reactor模式读取IO请求
             if (0 == request->m_io_state)
             {
-                if (request->read_once())
+                if (request->read())
                 {
                     request->improv = 1;
                     // 从连接池中获得一个连接

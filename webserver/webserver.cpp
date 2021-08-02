@@ -346,7 +346,7 @@ void WebServer::deal_read(int sockfd)
     else
     {
         // 主线程从这一sockfd读取数据, 直到没有更多数据可读
-        if (m_http_conns[sockfd].read_once())
+        if (m_http_conns[sockfd].read())
         {
             LOG_INFO("deal with the client(%s)", inet_ntoa(m_http_conns[sockfd].get_address()->sin_addr));
             // 将读取到的数据封装成一个请求对象并插入请求队列
@@ -368,8 +368,7 @@ void WebServer::deal_read(int sockfd)
 void WebServer::deal_write(int sockfd)
 {
     timer_node *timer = m_client_datas[sockfd].client_timer;
-    // reactor模式
-    // 让子线程写数据
+    // reactor模式，把请求添加到任务队列，让子线程写数据
     if (1 == m_actormodel)
     {
         if (timer)
