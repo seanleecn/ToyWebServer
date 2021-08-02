@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     // 会创建m_thread_num个线程
     server.thread_pool();
 
-    // 设置监听socket，epoll和定时器
+    // 设置监听socket，epoll，alarm信号触发函数
     server.eventListen();
 
     // 事件回环(即服务器主线程)

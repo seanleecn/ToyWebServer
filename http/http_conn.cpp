@@ -211,7 +211,7 @@ bool http_conn::read()
     }
 }
 
-// 解析http请求行
+// 解析HTTP请求行:获得请求方法，目标URL,以及HTTP版本号
 http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
 {
     // text:GET /index.html HTTP/1.1 为例
@@ -239,7 +239,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     else if (strcasecmp(method, "POST") == 0)
     {
         m_method = POST;
-        m_cgi = 1; // 這个很关键
+        m_cgi = 1; // 这个很关键
     }
     else
     {
@@ -293,7 +293,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     return NO_REQUEST;
 }
 
-// 解析http请求头
+// 解析HTTP请求的一个头部信息
 http_conn::HTTP_CODE http_conn::parse_headers(char *text)
 {
     // 判断是空行还是请求头
@@ -344,8 +344,8 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
     return NO_REQUEST;
 }
 
-// 解析请求体数据
-// 只有POST请求有这一部分，GET请求是直接写在请求行的url里面了
+// 解析HTTP请求的消息体
+// POST请求会保存请求体；GET请求只是检查有没有完全读完了
 http_conn::HTTP_CODE http_conn::parse_content(char *text)
 {
     // 这个判断保证已经完整把整个请求数据部分都读进来了

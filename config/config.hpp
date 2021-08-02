@@ -15,12 +15,6 @@ public:
         // 触发组合模式,默认listenfd LT + connfd LT
         m_trigger_mode = 0;
 
-        // listenfd触发模式，默认LT
-        // m_lisTriggerMode = 0;
-
-        // connfd触发模式，默认LT
-        // m_conTriggerMode = 0;
-
         // 优雅关闭链接，默认不使用
         m_linger = 0;
 

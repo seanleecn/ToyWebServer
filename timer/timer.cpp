@@ -254,8 +254,7 @@ void Utils::addsig(int sig, void(handler)(int), bool restart)
 void Utils::timer_handler()
 {
     m_timer_lst.tick();
-    // 最小的时间单位为5s
-    alarm(m_TIMESLOT);
+    alarm(m_TIMESLOT); // 重新触发SIGALRM信号
 }
 
 // 向连接客户发送错误报告
@@ -265,7 +264,7 @@ void Utils::show_error(int connfd, const char *info)
     close(connfd);
 }
 
-// TODO:下面两个static变量在这里初始化？没问题吗
+// static变量类内定义类外初始化
 int *Utils::u_pipefd = nullptr;
 int Utils::u_epollfd = 0;
 

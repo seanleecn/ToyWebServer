@@ -222,7 +222,9 @@ void WebServer::deal_timer(timer_node *timer, int sockfd)
 // 分配了定时器
 bool WebServer::deal_client()
 {
-    struct sockaddr_in client_address {};
+    struct sockaddr_in client_address
+    {
+    };
     socklen_t client_addr_length = sizeof(client_address);
 
     // 监听socket为LT模式(默认)，不需要一次就处理
@@ -276,11 +278,7 @@ bool WebServer::deal_signal(bool &timeout, bool &stop_server)
     char signals[1024];
     // 从管道读端读出信号值，成功返回字节数，失败返回-1
     ret = recv(m_pipefd[0], signals, sizeof(signals), 0);
-    if (ret == -1)
-    {
-        return false;
-    }
-    else if (ret == 0)
+    if (ret == -1 || ret == 0)
     {
         return false;
     }
@@ -293,7 +291,6 @@ bool WebServer::deal_signal(bool &timeout, bool &stop_server)
             {
             case SIGALRM:
             {
-                // 用timeout参数标记有超时任务需要处理，但是没有立刻处理
                 timeout = true;
                 break;
             }
@@ -308,7 +305,7 @@ bool WebServer::deal_signal(bool &timeout, bool &stop_server)
     return true;
 }
 
-// 7.3 读操作
+// 读操作
 void WebServer::deal_read(int sockfd)
 {
     // 取出当前socket对应的定时器
@@ -364,7 +361,7 @@ void WebServer::deal_read(int sockfd)
     }
 }
 
-// 7.4 写操作
+// 写操作
 void WebServer::deal_write(int sockfd)
 {
     timer_node *timer = m_client_datas[sockfd].client_timer;
@@ -446,6 +443,7 @@ void WebServer::eventLoop()
             // 处理定时器信号 有数据进来，且是在管道[0]的数据
             else if ((sockfd == m_pipefd[0]) && (m_events[i].events & EPOLLIN))
             {
+                // 判断信号，并修改参数
                 deal_signal(timeout_flag, stop_server);
             }
             // 处理读操作
