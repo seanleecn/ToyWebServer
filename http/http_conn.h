@@ -181,15 +181,16 @@ public:
     char m_write_buf[WRITE_BUFFER_SIZE]; // 存储发出的响应报文数据
     int m_write_idx;                     // 指示buffer中的长度
 
+    /*** 解析HTTP报文并保存相关的参数 ***/
     CHECK_STATE m_check_state; // 主状态机的状态
-    METHOD m_method;           // 请求方法
+    METHOD m_method;           // 请求方法，get还是post
 
     char m_real_file[FILENAME_LEN];
     char *m_url;
     char *m_version;
     char *m_host;
     int m_content_length;
-    bool m_linger;
+    bool m_keep_alive; // 优雅关闭连接
 
     // 读取服务器上的文件地址
     char *m_file_address;
@@ -212,7 +213,7 @@ public:
     char m_sql_passwd[100];
     char m_sql_name[100];
 
-    locker m_lock;
+    locker m_http_lock;
     // TODO:下面编译不通过报错了,得写在cpp文件中
     // 好像是因为Utils所在的timer.h中也include本文件，互相引用了
     // Utils m_utils2;

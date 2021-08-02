@@ -101,7 +101,7 @@ void http_conn::init()
     m_bytes_to_send = 0;
     m_bytes_have_send = 0;
     m_check_state = CHECK_STATE_REQUESTLINE;
-    m_linger = false;
+    m_keep_alive = false;
     m_method = GET;
     m_url = nullptr;
     m_version = nullptr;
@@ -239,7 +239,7 @@ http_conn::HTTP_CODE http_conn::parse_request_line(char *text)
     else if (strcasecmp(method, "POST") == 0)
     {
         m_method = POST;
-        m_cgi = 1; // 這個很关键
+        m_cgi = 1; // 這个很关键
     }
     else
     {
@@ -318,7 +318,7 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
         // TODO:keep-alive和优雅关闭连接有什么关系
         if (strcasecmp(text, "keep-alive") == 0)
         {
-            m_linger = true; //如果是长连接，则将linger标志设置为true
+            m_keep_alive = true; //如果是长连接，则将linger标志设置为true
         }
     }
 
@@ -339,12 +339,13 @@ http_conn::HTTP_CODE http_conn::parse_headers(char *text)
     }
     else
     {
-        LOG_INFO("oop!unknow header: %s", text);
+        LOG_INFO("oop! unknown request header: %s", text);
     }
     return NO_REQUEST;
 }
 
-// 判断http请求数据(POST才有)
+// 解析请求体数据
+// 只有POST请求有这一部分，GET请求是直接写在请求行的url里面了
 http_conn::HTTP_CODE http_conn::parse_content(char *text)
 {
     // 这个判断保证已经完整把整个请求数据部分都读进来了
@@ -427,16 +428,17 @@ http_conn::HTTP_CODE http_conn::process_read()
     return NO_REQUEST;
 }
 
-// 根据解析的请求，将不同的相应页面准备好
+// 解析是要请求文件，这个函数把文件路径准备好
 http_conn::HTTP_CODE http_conn::do_request()
 {
     strcpy(m_real_file, m_doc_root);
     int len = strlen(m_doc_root);
 
-    // p是/所在的位置,根据p后面的字符判断是登录还是注册
+    // p是/所在的位置,根据/后面的字符判断是登录还是注册
     const char *p = strrchr(m_url, '/');
 
     // 2:登录校验  3:注册校验
+    // m_cgi表示此时是post
     if (m_cgi == 1 && (*(p + 1) == '2' || *(p + 1) == '3'))
     {
         // 根据标志判断是登录检测还是注册检测
@@ -449,14 +451,14 @@ http_conn::HTTP_CODE http_conn::do_request()
         free(m_url_real);
 
         // 将用户名和密码提取出来
-        // user=123&passwd=123
+        // user=123&password=123
         char name[100], password[100];
-        int i;
+        int i; // 这里的5就是跳过user=
         for (i = 5; m_content[i] != '&'; ++i)
             name[i - 5] = m_content[i];
         name[i - 5] = '\0';
 
-        int j = 0;
+        int j = 0; // 这里的10是跳过&password=
         for (i = i + 10; m_content[i] != '\0'; ++i, ++j)
             password[j] = m_content[i];
         password[j] = '\0';
@@ -464,6 +466,7 @@ http_conn::HTTP_CODE http_conn::do_request()
         // 注册
         if (*(p + 1) == '3')
         {
+
             char *sql_insert = (char *)malloc(sizeof(char) * 200);
             strcpy(sql_insert, "INSERT INTO user(username, passwd) VALUES(");
             strcat(sql_insert, "'");
@@ -475,10 +478,12 @@ http_conn::HTTP_CODE http_conn::do_request()
             // 没有重名的
             if (m_users_map.find(name) == m_users_map.end())
             {
-                m_lock.lock();
+                m_http_lock.lock();
+                // 插入密码
+                // 新的密码
                 int res = mysql_query(m_mysql, sql_insert);
                 m_users_map.insert(pair<string, string>(name, password));
-                m_lock.unlock();
+                m_http_lock.unlock();
                 // 如果sql插入成功
                 if (!res)
                     strcpy(m_url, "/log.html");
@@ -649,7 +654,7 @@ bool http_conn::write()
             m_utils.modfd(m_epollfd, m_sockfd, EPOLLIN, m_trigger_mode);
 
             // 浏览器的请求为长连接
-            if (m_linger)
+            if (m_keep_alive)
             {
                 init();
                 return true;
@@ -721,7 +726,7 @@ bool http_conn::add_content_type()
 // 添加连接状态，通知浏览器端是保持连接还是关闭
 bool http_conn::add_linger()
 {
-    return add_response("Connection:%s\r\n", m_linger ? "keep-alive" : "close");
+    return add_response("Connection:%s\r\n", m_keep_alive ? "keep-alive" : "close");
 }
 
 // 添加空行

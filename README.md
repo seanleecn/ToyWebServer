@@ -165,11 +165,30 @@ Linux下基于C++的**玩具级**服务器，参考了下面两个项目。
     TODO
     插图
 
-## Mysql连接
+## 连接Mysql用到的函数
 
-```
-mysql_query 发一个mysql命令
-mysql_store_result 拿到输出的结果
-mysql_fetch_row 按行读取结果
-```
+1. mysql_init()                         初始化连接
+2. mysql_real_connect()                 建立一个到mysql数据库的连接
+3. mysql_query()                        执行查询语句(初始化密码map和添加user)
+4. result = mysql_store_result(mysql)   获取结果集 
+5. mysql_num_fields(result)             获取查询的列数
+6. mysql_num_rows(result)               获取结果集的行数 
+7. mysql_fetch_row(result)              不断获取下一行，然后循环输出 
+8. mysql_free_result(result)            释放结果集所占内存 
+9. mysql_close(conn)                    关闭连接
 
+
+## 登录流程
+浏览器中键入localhost:9000
+浏览器给服务器发送GET请求
+服务器解析该GET请求，返回judge.html静态页面
+judge.html中有两个案件新用户和老用户，点击之后就会给服务器发送一个POST请求
+服务器会根据其中的action字段判断POST请求的是啥，做出不同的响应
+  0. 注册
+  1. 登录 
+  2. 登录校验
+  3. 注册校验
+  4. 无
+  5. 图片
+  6. 视频
+  7. 看看我
