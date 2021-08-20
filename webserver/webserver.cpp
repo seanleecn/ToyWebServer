@@ -247,7 +247,8 @@ bool WebServer::deal_client()
     // 监听socket为ET模式，需要一次性处理数据(死循环)
     else
     {
-        // TODO:这个while循环有什么意义，break之后就return false
+        // ! 最外层的while保证了accept不会失效
+        // https://www.cnblogs.com/qinguoyi/p/12355519.html
         while (true)
         {
             // accept返回了一个新的connfd用于send()和recv()
